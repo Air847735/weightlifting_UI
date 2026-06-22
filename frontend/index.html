@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>LiftDetect — Analysis Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f7f6f2;--surface:#fff;--surface2:#f0efe9;
+  --border:#e3e1d8;--border2:#cccac0;
+  --text:#1a1a17;--text2:#5a5850;--text3:#9a9890;
+  --accent:#1D9E75;--accent-l:#E1F5EE;
+  --accent2:#D85A30;--accent2-l:#FAECE7;
+  --amber:#BA7517;--amber-l:#FAEEDA;
+  --purple:#534AB7;--purple-l:#EEEDFE;
+  --r:8px;--rl:12px;
+}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;line-height:1.5;}
+/* Layout */
+.shell{display:grid;grid-template-rows:56px 1fr;min-height:100vh;}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 28px;position:sticky;top:0;z-index:100;}
+.brand{display:flex;align-items:center;gap:10px;}
+.brand-icon{width:32px;height:32px;background:var(--text);border-radius:7px;display:flex;align-items:center;justify-content:center;}
+.brand-icon svg{width:16px;height:16px;fill:none;stroke:#fff;stroke-width:1.8;}
+.brand-name{font-family:'Lora',serif;font-size:16px;font-weight:500;letter-spacing:-.02em;}
+.brand-sub{font-size:11px;color:var(--text3);margin-top:1px;}
+.topbar-right{display:flex;align-items:center;gap:12px;}
+.badge{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);background:var(--surface2);border:1px solid var(--border);border-radius:99px;padding:4px 12px;}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--border2);}
+.dot.run{background:var(--accent);animation:pulse 1.5s ease-in-out infinite;}
+.dot.done{background:var(--accent);}
+.dot.err{background:var(--accent2);}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.btn{border:1px solid var(--border2);background:var(--surface);border-radius:var(--r);padding:6px 14px;font-size:12px;font-family:'DM Sans',sans-serif;color:var(--text);cursor:pointer;transition:all .15s;}
+.btn:hover{background:var(--surface2);}
+.btn-primary{background:var(--text);color:#fff;border-color:var(--text);}
+.btn-primary:hover{background:#333;}
+.btn-accent{background:var(--accent);color:#fff;border-color:var(--accent);}
+.btn-accent:hover{opacity:.9;}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+/* Main */
+.main{display:grid;grid-template-columns:380px 1fr;height:calc(100vh - 56px);}
+.left{border-right:1px solid var(--border);overflow-y:auto;background:var(--surface);display:flex;flex-direction:column;}
+.right{overflow-y:auto;padding:24px 28px;display:flex;flex-direction:column;gap:20px;}
+/* Upload */
+.upload-wrap{padding:20px;border-bottom:1px solid var(--border);}
+.zone{border:1.5px dashed var(--border2);border-radius:var(--rl);padding:28px 20px;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg);}
+.zone:hover,.zone.over{border-color:var(--accent);background:var(--accent-l);}
+.zone-icon{width:44px;height:44px;background:var(--surface2);border-radius:10px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;}
+.zone-icon svg{width:22px;height:22px;stroke:var(--text2);fill:none;stroke-width:1.6;}
+.zone-title{font-family:'Lora',serif;font-size:14px;font-weight:500;margin-bottom:4px;}
+.zone-sub{font-size:11px;color:var(--text3);}
+#fileIn{display:none;}
+.upload-actions{display:flex;gap:8px;margin-top:10px;}
+/* Progress */
+.prog-wrap{padding:14px 20px;border-bottom:1px solid var(--border);display:none;}
+.prog-wrap.show{display:block;}
+.prog-row{display:flex;justify-content:space-between;margin-bottom:5px;}
+.prog-row span{font-size:12px;color:var(--text2);}
+.prog-row strong{font-size:12px;font-family:'DM Mono',monospace;}
+.track{height:4px;background:var(--border);border-radius:2px;overflow:hidden;}
+.fill{height:100%;background:var(--accent);width:0%;transition:width .3s;border-radius:2px;}
+.prog-eta{font-size:11px;color:var(--text3);margin-top:5px;}
+/* Video */
+.vid-wrap{padding:14px 20px;border-bottom:1px solid var(--border);display:none;}
+.vid-wrap.show{display:block;}
+.vid-label{font-size:11px;color:var(--text3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;}
+.vid-box{background:#0f0f14;border-radius:var(--rl);overflow:hidden;position:relative;aspect-ratio:16/9;}
+.vid-box video{width:100%;height:100%;object-fit:contain;display:block;}
+.vid-ctrl{display:flex;align-items:center;gap:8px;margin-top:8px;}
+.vid-time{font-size:11px;font-family:'DM Mono',monospace;color:var(--text3);}
+/* Live metrics */
+.live-wrap{padding:14px 20px;display:none;}
+.live-wrap.show{display:block;}
+.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+.mc{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:8px 11px;}
+.mc .ml{font-size:10px;color:var(--text3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px;}
+.mc .mv{font-family:'Lora',serif;font-size:19px;font-weight:500;line-height:1;}
+.mc .mu{font-size:11px;color:var(--text3);font-family:'DM Sans',sans-serif;}
+.mc.acc{background:var(--accent-l);border-color:#9FE1CB;}.mc.acc .mv{color:var(--accent);}
+.mc.wrn{background:var(--accent2-l);border-color:#F5C4B3;}.mc.wrn .mv{color:var(--accent2);}
+.mc.amb{background:var(--amber-l);border-color:#FAC775;}.mc.amb .mv{color:var(--amber);}
+.mc-stop{grid-column:1/-1;background:#0f0f14;border-radius:var(--r);padding:7px 11px;display:none;}
+.mc-stop.show{display:flex;align-items:center;gap:7px;}
+.mc-stop span{font-size:12px;color:#FAC775;font-family:'DM Mono',monospace;letter-spacing:.08em;}
+/* Right sections */
+.sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.st{font-family:'Lora',serif;font-size:15px;font-weight:500;display:flex;align-items:center;gap:8px;}
+.st::before{content:'';display:inline-block;width:3px;height:16px;background:var(--accent);border-radius:2px;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:18px 20px;box-shadow:0 1px 3px rgba(0,0,0,.05);}
+/* Summary */
+.sg{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+.sc{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:15px 17px;}
+.sc .sl{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px;}
+.sc .sv{font-family:'Lora',serif;font-size:26px;font-weight:500;line-height:1;margin-bottom:3px;}
+.sc .su{font-size:12px;color:var(--text3);}
+.sc .sn{font-size:11px;margin-top:5px;}
+.tag{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:500;}
+.tg{background:var(--accent-l);color:#0F6E56;}
+.tr{background:var(--accent2-l);color:#993C1D;}
+.ta{background:var(--amber-l);color:#854F0B;}
+.tz{background:var(--surface2);color:var(--text2);}
+/* Charts */
+.c2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.c3{display:grid;grid-template-columns:2fr 1fr;gap:16px;}
+.ch{position:relative;height:200px;}
+.cht{position:relative;height:240px;}
+/* Trajectory */
+.traj-box{background:var(--surface2);border-radius:var(--r);height:220px;position:relative;overflow:hidden;}
+#trajCanvas{width:100%;height:100%;display:block;}
+.tleg{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;}
+.tli{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);}
+.td{width:10px;height:10px;border-radius:50%;}
+/* Symmetry */
+.symb{display:flex;flex-direction:column;gap:10px;margin-top:4px;}
+.sr{display:flex;align-items:center;gap:8px;}
+.sl2{font-size:12px;color:var(--text2);width:14px;font-family:'DM Mono',monospace;}
+.str{flex:1;height:7px;background:var(--border);border-radius:4px;overflow:hidden;}
+.sf{height:100%;border-radius:4px;transition:width .4s;}
+.sf.L{background:var(--accent);}.sf.R{background:var(--accent2);}
+.sv2{font-size:12px;font-family:'DM Mono',monospace;width:36px;text-align:right;}
+/* Round table */
+.rtbl{width:100%;border-collapse:collapse;font-size:12px;}
+.rtbl th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);font-weight:400;padding:0 7px 8px;border-bottom:1px solid var(--border);}
+.rtbl td{padding:7px;border-bottom:1px solid var(--border);color:var(--text2);}
+.rtbl td:first-child{font-family:'DM Mono',monospace;font-size:11px;color:var(--text);}
+.rtbl tr:last-child td{border-bottom:none;}
+.rtbl tr:hover td{background:var(--bg);}
+/* Export */
+.export-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;}
+/* Placeholder */
+.ph{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--text3);padding:40px;text-align:center;min-height:220px;}
+.ph svg{width:40px;height:40px;stroke:var(--border2);fill:none;stroke-width:1.2;}
+.ph p{font-size:13px;}
+/* Toast */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--text);color:#fff;border-radius:var(--r);padding:10px 16px;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:999;opacity:0;transform:translateY(8px);transition:all .25s;pointer-events:none;}
+.toast.show{opacity:1;transform:translateY(0);}
+/* Error banner */
+.err-banner{background:var(--accent2-l);border:1px solid #F5C4B3;border-radius:var(--r);padding:10px 14px;font-size:12px;color:#993C1D;display:none;margin:12px 20px 0;}
+.err-banner.show{display:block;}
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+@media(max-width:1100px){.main{grid-template-columns:320px 1fr}.sg{grid-template-columns:repeat(2,1fr)}.c2,.c3{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- TOP BAR -->
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-icon"><svg viewBox="0 0 24 24"><path d="M4 12h16M4 12l4-4M4 12l4 4M20 12l-4-4M20 12l-4 4"/></svg></div>
+    <div><div class="brand-name">LiftDetect</div><div class="brand-sub">Barbell analysis · RTMPose-L · YOLOv8 · DeepSort</div></div>
+  </div>
+  <div class="topbar-right">
+    <div class="badge"><span class="dot" id="sDot"></span><span id="sTxt">Ready</span></div>
+    <button class="btn" id="btnReset" onclick="resetAll()" disabled>New session</button>
+    <button class="btn btn-accent" id="btnExport" onclick="exportAll()" disabled>Export all</button>
+  </div>
+</header>
+
+<!-- MAIN -->
+<div class="main">
+
+<!-- LEFT -->
+<aside class="left">
+  <div class="upload-wrap">
+    <div class="zone" id="zone"
+      ondragover="ev(event,'over')" ondragleave="ev(event,'out')" ondrop="ev(event,'drop')"
+      onclick="document.getElementById('fileIn').click()">
+      <div class="zone-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg></div>
+      <div class="zone-title" id="zTitle">Drop your video here</div>
+      <div class="zone-sub" id="zSub">.mp4 · .mov · .avi · up to 4K</div>
+      <div class="zone-sub" style="margin-top:6px;color:var(--text2)">or click to browse</div>
+    </div>
+    <input type="file" id="fileIn" accept="video/*" onchange="onFile(event)"/>
+    <div class="err-banner" id="errBanner"></div>
+    <div class="upload-actions">
+      <button class="btn btn-primary" id="btnGo" onclick="startJob()" disabled style="flex:1">Analyse video</button>
+    </div>
+  </div>
+
+  <div class="prog-wrap" id="progWrap">
+    <div class="prog-row"><span id="progLabel">Initialising…</span><strong id="progPct">0%</strong></div>
+    <div class="track"><div class="fill" id="progFill"></div></div>
+    <div class="prog-eta" id="progEta">Estimating…</div>
+  </div>
+
+  <div class="vid-wrap" id="vidWrap">
+    <div class="vid-label">Output — annotated video</div>
+    <div class="vid-box">
+      <video id="outVid" controls preload="metadata" oncanplay="vidReady()"></video>
+    </div>
+    <div class="vid-ctrl">
+      <button class="btn" id="btnDlVid" disabled onclick="dlVideo()" style="padding:4px 10px;font-size:11px;">
+        ↓ Save video
+      </button>
+      <span class="vid-time" id="vidTime">0:00 / 0:00</span>
+    </div>
+  </div>
+
+  <div class="live-wrap" id="liveWrap">
+    <div class="vid-label" style="margin-bottom:9px">Live readout</div>
+    <div class="mgrid">
+      <div class="mc amb"><div class="ml">Round</div><div class="mv" id="lRound">—</div></div>
+      <div class="mc"><div class="ml">Squat count</div><div class="mv" id="lSq">—</div></div>
+      <div class="mc"><div class="ml">Speed</div><div class="mv" id="lSpd">—<span class="mu"> m/s</span></div></div>
+      <div class="mc acc"><div class="ml">Max speed</div><div class="mv" id="lMax">—<span class="mu"> m/s</span></div></div>
+      <div class="mc"><div class="ml">Avg speed</div><div class="mv" id="lAvg">—<span class="mu"> m/s</span></div></div>
+      <div class="mc"><div class="ml">CoM–bar dist</div><div class="mv" id="lCom">—<span class="mu"> m</span></div></div>
+      <div class="mc"><div class="ml">L hip angle</div><div class="mv" id="lLH">—<span class="mu">°</span></div></div>
+      <div class="mc wrn"><div class="ml">R hip angle</div><div class="mv" id="lRH">—<span class="mu">°</span></div></div>
+      <div class="mc-stop" id="lStop"><span>■ STOP — starting new round</span></div>
+    </div>
+  </div>
+</aside>
+
+<!-- RIGHT -->
+<main class="right" id="right">
+  <div id="emptyState">
+    <div class="ph">
+      <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      <p>Upload a video and click <strong>Analyse video</strong> to see the full biomechanics report</p>
+    </div>
+  </div>
+
+  <div id="results" style="display:none;flex-direction:column;gap:20px;">
+
+    <!-- Summary -->
+    <div>
+      <div class="sh"><div class="st">Session summary</div><span class="tag tz" id="meta">—</span></div>
+      <div class="sg">
+        <div class="sc"><div class="sl">Total rounds</div><div class="sv" id="sRounds">—</div><div class="su">completed sets</div></div>
+        <div class="sc"><div class="sl">Total reps</div><div class="sv" id="sReps">—</div><div class="su">successful squats</div></div>
+        <div class="sc"><div class="sl">Peak velocity</div><div class="sv" id="sPeak">—<span style="font-size:14px;color:var(--text3)"> m/s</span></div><div class="sn" id="sPeakN"></div></div>
+        <div class="sc"><div class="sl">Avg CoM–bar</div><div class="sv" id="sCom">—<span style="font-size:14px;color:var(--text3)"> m</span></div><div class="su">bar proximity</div></div>
+      </div>
+    </div>
+
+    <!-- Trajectory + speed -->
+    <div class="c3">
+      <div class="card">
+        <div class="sh"><div class="st">Barbell trajectory</div><div style="display:flex;gap:5px" id="rToggles"></div></div>
+        <div class="traj-box"><canvas id="trajCanvas"></canvas></div>
+        <div class="tleg" id="tLeg"></div>
+      </div>
+      <div class="card">
+        <div class="sh"><div class="st">Speed per rep</div></div>
+        <div class="ch"><canvas id="spdChart"></canvas></div>
+        <div style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap">
+          <span style="font-size:11px;color:var(--text3)">Peak <strong id="pkLbl" style="color:var(--accent);font-family:'DM Mono',monospace">—</strong></span>
+          <span style="font-size:11px;color:var(--text3)">Avg <strong id="avLbl" style="font-family:'DM Mono',monospace">—</strong></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hip + symmetry -->
+    <div class="c2">
+      <div class="card">
+        <div class="sh">
+          <div class="st">Hip angle over time</div>
+          <div style="display:flex;gap:10px">
+            <div class="tli"><div class="td" style="background:var(--accent)"></div>Left</div>
+            <div class="tli"><div class="td" style="background:var(--accent2)"></div>Right</div>
+          </div>
+        </div>
+        <div class="cht"><canvas id="hipChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="sh"><div class="st">Hip symmetry</div></div>
+        <div class="symb" id="symBars"></div>
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+          <div style="font-size:11px;color:var(--text3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em">Asymmetry score</div>
+          <div style="font-family:'Lora',serif;font-size:22px;font-weight:500" id="asymScore">—</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px" id="asymNote">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CoM + round table -->
+    <div class="c2">
+      <div class="card">
+        <div class="sh"><div class="st">CoM – bar distance per frame</div></div>
+        <div class="ch"><canvas id="comChart"></canvas></div>
+        <div style="font-size:11px;color:var(--text3);margin-top:7px">Lower = bar stays closer to body's centre of mass — better mechanics</div>
+      </div>
+      <div class="card">
+        <div class="sh"><div class="st">Round breakdown</div></div>
+        <table class="rtbl">
+          <thead><tr><th>Round</th><th>Reps</th><th>Peak</th><th>Avg</th><th>L hip</th><th>R hip</th></tr></thead>
+          <tbody id="rTbl"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Export -->
+    <div class="card">
+      <div class="sh"><div class="st">Export</div></div>
+      <div class="export-row">
+        <button class="btn" onclick="exportJSON()">↓ Session JSON</button>
+        <button class="btn" onclick="exportCSV()">↓ Rep CSV</button>
+        <button class="btn" onclick="exportTraj()">↓ Trajectory PNG</button>
+        <button class="btn" id="btnDlVid2" disabled onclick="dlVideo()">↓ Annotated video</button>
+      </div>
+    </div>
+
+  </div><!-- /results -->
+</main>
+</div><!-- /main -->
+</div><!-- /shell -->
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════
+//  CONFIG — change port if needed
+// ══════════════════════════════════════════════
+const API = 'http://localhost:8000';
+
+// ══════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════
+let jobId      = null;
+let session    = null;
+let charts     = {};
+let videoFile  = null;
+let eventSrc   = null;
+const RCOLS    = ['#1D9E75','#D85A30','#BA7517','#534AB7','#888780','#0F6E56'];
+
+// ══════════════════════════════════════════════
+//  DRAG & DROP
+// ══════════════════════════════════════════════
+function ev(e, t) {
+  e.preventDefault();
+  const z = document.getElementById('zone');
+  if (t==='over') z.classList.add('over');
+  else if (t==='out') z.classList.remove('over');
+  else { z.classList.remove('over'); setFile(e.dataTransfer.files[0]); }
+}
+function onFile(e) { setFile(e.target.files[0]); }
+function setFile(f) {
+  if (!f || !f.type.startsWith('video/')) { toast('Please select a video file'); return; }
+  videoFile = f;
+  g('zTitle').textContent = f.name;
+  g('zSub').textContent   = (f.size/1024/1024).toFixed(1)+' MB · '+f.type;
+  g('btnGo').disabled     = false;
+  toast('Video selected — click Analyse to begin');
+}
+
+// ══════════════════════════════════════════════
+//  UPLOAD + START JOB
+// ══════════════════════════════════════════════
+async function startJob() {
+  if (!videoFile) return;
+  hideErr();
+  g('btnGo').disabled = true;
+
+  // 1. Upload file
+  setStatus('run','Uploading…');
+  show('progWrap'); show('vidWrap'); show('liveWrap');
+  g('emptyState').style.display = 'none';
+  g('results').style.display    = 'flex';
+
+  prog(2, 'Uploading video…');
+
+  const fd = new FormData();
+  fd.append('file', videoFile);
+
+  let uploadRes;
+  try {
+    const r = await fetch(`${API}/api/upload`, { method:'POST', body:fd });
+    if (!r.ok) throw new Error(await r.text());
+    uploadRes = await r.json();
+  } catch(e) {
+    showErr('Upload failed: '+e.message+'. Is the server running? See README.md.');
+    setStatus('err','Upload failed'); g('btnGo').disabled=false; return;
+  }
+
+  jobId = uploadRes.job_id;
+  toast('Upload complete — starting analysis…');
+  prog(5, 'Starting analysis engine…');
+
+  // 2. Start processing
+  try {
+    const r = await fetch(`${API}/api/start/${jobId}`, { method:'POST' });
+    if (!r.ok) throw new Error(await r.text());
+  } catch(e) {
+    showErr('Could not start job: '+e.message);
+    setStatus('err','Start failed'); return;
+  }
+
+  // 3. Open SSE stream
+  openStream();
+}
+
+// ══════════════════════════════════════════════
+//  SSE STREAM
+// ══════════════════════════════════════════════
+function openStream() {
+  if (eventSrc) eventSrc.close();
+  eventSrc = new EventSource(`${API}/api/stream/${jobId}`);
+
+  eventSrc.addEventListener('frame', e => {
+    const d = JSON.parse(e.data);
+    updateLive(d);
+    prog(d.progress, stageLabel(d.progress));
+  });
+
+  eventSrc.addEventListener('done', e => {
+    eventSrc.close();
+    const d = JSON.parse(e.data);
+    session = d;
+    prog(100, 'Analysis complete');
+    setStatus('done', 'Analysis complete');
+    g('btnReset').disabled  = false;
+    g('btnExport').disabled = false;
+    // Load output video
+    const vid = g('outVid');
+    vid.src = `${API}/api/download/${jobId}`;
+    g('btnDlVid').disabled  = false;
+    g('btnDlVid2').disabled = false;
+    renderResults(d);
+    toast(`Analysis complete — ${d.summary.total_reps} reps across ${d.summary.total_rounds} rounds`);
+  });
+
+  eventSrc.addEventListener('error', e => {
+    let msg = 'Unknown error';
+    try { msg = JSON.parse(e.data).message; } catch(_){}
+    showErr('Analysis error: ' + msg);
+    setStatus('err', 'Error');
+    eventSrc.close();
+  });
+
+  eventSrc.onerror = () => {
+    // Reconnects automatically for transient drops; only show error if job is already done/err
+  };
+}
+
+// ══════════════════════════════════════════════
+//  LIVE METRICS
+// ══════════════════════════════════════════════
+function updateLive(d) {
+  setTxt('lRound', d.round ?? '—');
+  setTxt('lSq',    d.squat_count ?? '—');
+  setTxt('lSpd',   d.speed != null ? d.speed.toFixed(2) : '—');
+  setTxt('lMax',   d.max_speed != null ? d.max_speed.toFixed(2) : '—');
+  setTxt('lAvg',   d.avg_speed != null ? d.avg_speed.toFixed(2) : '—');
+  setTxt('lLH',    d.l_hip != null ? d.l_hip.toFixed(1) : '—');
+  setTxt('lRH',    d.r_hip != null ? d.r_hip.toFixed(1) : '—');
+  setTxt('lCom',   d.com_dist != null ? d.com_dist.toFixed(3) : '—');
+  g('lStop').classList.toggle('show', !!d.is_stopped);
+}
+
+// ══════════════════════════════════════════════
+//  VIDEO
+// ══════════════════════════════════════════════
+function vidReady() {
+  const v = g('outVid');
+  v.addEventListener('timeupdate', () => {
+    g('vidTime').textContent = fmt(v.currentTime)+' / '+fmt(v.duration||0);
+  });
+}
+function fmt(s) {
+  if (isNaN(s)) return '0:00';
+  return Math.floor(s/60)+':'+(Math.floor(s%60)<10?'0':'')+Math.floor(s%60);
+}
+function dlVideo() {
+  if (!jobId) return;
+  const a = document.createElement('a');
+  a.href     = `${API}/api/download/${jobId}`;
+  a.download = baseName()+'_output.mp4';
+  a.click();
+  toast('Video download started');
+}
+
+// ══════════════════════════════════════════════
+//  RENDER RESULTS
+// ══════════════════════════════════════════════
+function renderResults(d) {
+  const s = d.summary;
+  g('meta').textContent   = d.meta.filename+' · '+d.meta.duration+' · '+d.meta.model;
+  g('sRounds').textContent = s.total_rounds;
+  g('sReps').textContent   = s.total_reps;
+  g('sPeak').innerHTML     = s.peak_speed.toFixed(2)+'<span style="font-size:14px;color:var(--text3)"> m/s</span>';
+  g('sPeakN').innerHTML    = s.peak_speed>1.7
+    ? '<span class="tag tg">Strong velocity</span>'
+    : '<span class="tag ta">Solid effort</span>';
+  g('sCom').innerHTML = (s.avg_com||0).toFixed(3)+'<span style="font-size:14px;color:var(--text3)"> m</span>';
+
+  renderTraj(d);
+  renderSpd(d);
+  renderHip(d);
+  renderSym(d);
+  renderCom(d);
+  renderTbl(d);
+}
+
+// ── Trajectory ─────────────────────────────────
+// activeRounds: Set of round indices currently visible (all on first render)
+let activeRounds = new Set();
+let _trajData    = null;   // cache for redraw on toggle
+
+function renderTraj(d) {
+  _trajData    = d;
+  activeRounds = new Set(d.rounds.map((_,i)=>i));  // all on by default
+
+  // Build toggle buttons
+  const tog = g('rToggles'); tog.innerHTML='';
+  d.rounds.forEach((r,ri) => {
+    const col = RCOLS[ri%RCOLS.length];
+    const b   = document.createElement('button');
+    b.className   = 'btn tgl-active';
+    b.style.cssText = `padding:2px 10px;font-size:10px;border-left:3px solid ${col};
+                       background:${col}18;transition:all .15s;`;
+    b.textContent = 'R'+(ri+1);
+    b.dataset.ri  = ri;
+    b.onclick = () => toggleRound(ri, b, col);
+    tog.appendChild(b);
+  });
+
+  _drawTraj();
+}
+
+function toggleRound(ri, btn, col) {
+  if (activeRounds.has(ri)) {
+    activeRounds.delete(ri);
+    btn.style.background   = 'transparent';
+    btn.style.color        = 'var(--text3)';
+    btn.style.borderColor  = col;
+    btn.style.opacity      = '0.45';
+  } else {
+    activeRounds.add(ri);
+    btn.style.background  = col+'18';
+    btn.style.color       = 'var(--text)';
+    btn.style.borderColor = col;
+    btn.style.opacity     = '1';
+  }
+  _drawTraj();
+}
+
+function _drawTraj() {
+  const d      = _trajData;
+  const canvas = g('trajCanvas');
+  const ctx    = canvas.getContext('2d');
+  const W = canvas.offsetWidth, H = canvas.offsetHeight;
+  canvas.width  = W * devicePixelRatio;
+  canvas.height = H * devicePixelRatio;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+
+  // Background + grid
+  ctx.fillStyle = '#f0efe9'; ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle = '#e3e1d8'; ctx.lineWidth = 0.5;
+  [1,2,3,4].forEach(i => {
+    ctx.beginPath(); ctx.moveTo(0,H/4*i); ctx.lineTo(W,H/4*i); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(W/4*i,0); ctx.lineTo(W/4*i,H); ctx.stroke();
+  });
+
+  // Compute global bounds across ALL rounds (so scale stays fixed during toggle)
+  let allX=[], allY=[];
+  d.rounds.forEach(r => {
+    if (!r.trajectory || r.trajectory.length<2) return;
+    r.trajectory.forEach(p => { allX.push(p[0]); allY.push(p[1]); });
+  });
+  if (!allX.length) return;
+  const mnX=Math.min(...allX), mxX=Math.max(...allX);
+  const mnY=Math.min(...allY), mxY=Math.max(...allY);
+  const rX=mxX-mnX||1, rY=mxY-mnY||1;
+  const pad=22;
+  const tx = x => pad+(x-mnX)/rX*(W-2*pad);
+  const ty = y => H-pad-(y-mnY)/rY*(H-2*pad);
+
+  // Draw only active rounds
+  d.rounds.forEach((r,ri) => {
+    const pts = r.trajectory;
+    if (!pts || pts.length<2) return;
+    const col = RCOLS[ri%RCOLS.length];
+
+    if (!activeRounds.has(ri)) return;   // ← hidden by toggle
+
+    ctx.beginPath(); ctx.strokeStyle=col; ctx.lineWidth=2; ctx.lineJoin='round';
+    pts.forEach((p,i) => i===0?ctx.moveTo(tx(p[0]),ty(p[1])):ctx.lineTo(tx(p[0]),ty(p[1])));
+    ctx.stroke();
+
+    const f=pts[0], l=pts[pts.length-1];
+    ctx.fillStyle=col;
+    ctx.beginPath(); ctx.arc(tx(f[0]),ty(f[1]),4,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(tx(l[0]),ty(l[1]),5,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#fff';
+    ctx.beginPath(); ctx.arc(tx(l[0]),ty(l[1]),2.5,0,Math.PI*2); ctx.fill();
+  });
+
+  // Legend
+  const leg = g('tLeg'); leg.innerHTML='';
+  d.rounds.forEach((r,ri) => {
+    const col = RCOLS[ri%RCOLS.length];
+    const dim = activeRounds.has(ri) ? '' : 'opacity:.35;';
+    leg.innerHTML += `<div class="tli" style="${dim}">
+      <div class="td" style="background:${col}"></div>Round ${ri+1} (${r.reps} reps)
+    </div>`;
+  });
+}
+
+// ── Speed per round (fixes empty chart when reps=0) ─
+function renderSpd(d) {
+  if (charts.spd) charts.spd.destroy();
+
+  // Use one bar per round — peak_speed per round is always available
+  // even when per-rep counting is 0 (barbell detected but squat threshold not met)
+  const labels  = d.rounds.map((_,i)=>'Round '+(i+1));
+  const peaks   = d.rounds.map(r => r.peak_speed  || 0);
+  const avgs    = d.rounds.map(r => r.avg_speed   || 0);
+
+  if (peaks.every(v=>v===0)) {
+    // No speed data at all — show friendly message inside the canvas area
+    g('pkLbl').textContent = 'N/A';
+    g('avLbl').textContent = 'N/A';
+    const ctx2 = g('spdChart').getContext('2d');
+    ctx2.clearRect(0,0,9999,9999);
+    ctx2.font = '13px DM Sans,sans-serif';
+    ctx2.fillStyle = '#9a9890';
+    ctx2.textAlign = 'center';
+    ctx2.fillText('No speed data — barbell not detected', g('spdChart').offsetWidth/2, 100);
+    return;
+  }
+
+  const maxPeak = Math.max(...peaks);
+  const avgAll  = peaks.reduce((a,b)=>a+b,0) / peaks.length;
+  g('pkLbl').textContent = maxPeak.toFixed(2)+' m/s';
+  g('avLbl').textContent = avgAll.toFixed(2)+' m/s';
+
+  charts.spd = new Chart(g('spdChart').getContext('2d'), {
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        { label:'Peak speed', data:peaks,
+          backgroundColor: peaks.map(v=>v===maxPeak?'#1D9E75':'rgba(29,158,117,.35)'),
+          borderRadius:5, borderSkipped:false },
+        { label:'Avg speed', data:avgs,
+          backgroundColor: avgs.map(()=>'rgba(83,74,183,.25)'),
+          borderRadius:5, borderSkipped:false },
+        { type:'line', label:'Overall avg', data:peaks.map(()=>avgAll),
+          borderColor:'#D85A30', borderWidth:1.5, pointRadius:0, borderDash:[4,3] }
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ display:true, position:'bottom',
+          labels:{ font:{size:10}, color:'#9a9890', boxWidth:10, padding:10 }},
+        tooltip:{ callbacks:{ label:c=>c.dataset.label+': '+c.raw.toFixed(2)+' m/s' }}
+      },
+      scales:{
+        x:{ grid:{display:false}, ticks:{font:{size:10},color:'#9a9890'} },
+        y:{ grid:{color:'rgba(0,0,0,.05)'},
+            ticks:{font:{size:10,family:'DM Mono'},color:'#9a9890',
+                   callback:v=>v.toFixed(1)+' m/s'}, min:0 }
+      }
+    }
+  });
+}
+
+// ── Hip angle chart ─────────────────────────────
+function renderHip(d) {
+  if (charts.hip) charts.hip.destroy();
+  const frames = d.frames.filter((_,i)=>i%3===0);
+  charts.hip = new Chart(g('hipChart').getContext('2d'), {
+    type:'line',
+    data:{
+      labels: frames.map(f=>f.t.toFixed(1)+'s'),
+      datasets:[
+        {label:'Left hip', data:frames.map(f=>f.l_hip), borderColor:'#1D9E75',
+         backgroundColor:'rgba(29,158,117,.07)',borderWidth:1.8,pointRadius:0,fill:true,tension:0.3},
+        {label:'Right hip',data:frames.map(f=>f.r_hip),borderColor:'#D85A30',
+         backgroundColor:'rgba(216,90,48,.06)',borderWidth:1.8,pointRadius:0,fill:true,tension:0.3,borderDash:[5,3]}
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.raw!=null?c.raw.toFixed(1):'N/A')+'°'}}},
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:9},color:'#9a9890',maxTicksLimit:8}},
+        y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10,family:'DM Mono'},color:'#9a9890',callback:v=>v+'°'},min:60,max:180}
+      }
+    }
+  });
+}
+
+// ── Symmetry ─────────────────────────────────────
+function renderSym(d) {
+  const s = d.summary;
+  const el = g('symBars'); el.innerHTML='';
+  d.rounds.forEach((r,i) => {
+    const l=r.avg_l_hip||80, rh=r.avg_r_hip||80;
+    el.innerHTML+=`
+      <div>
+        <div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">Round ${i+1}</div>
+        <div class="sr"><span class="sl2">L</span><div class="str"><div class="sf L" style="width:${(l/180*100).toFixed(1)}%"></div></div><span class="sv2">${l.toFixed(0)}°</span></div>
+        <div class="sr" style="margin-top:4px"><span class="sl2">R</span><div class="str"><div class="sf R" style="width:${(rh/180*100).toFixed(1)}%"></div></div><span class="sv2">${rh.toFixed(0)}°</span></div>
+      </div>`;
+  });
+  const diff = Math.abs((s.avg_l_hip||80)-(s.avg_r_hip||80));
+  g('asymScore').textContent = diff.toFixed(1)+'°';
+  g('asymNote').textContent  = diff<3?'Excellent bilateral symmetry':diff<7?'Minor asymmetry — monitor':'Notable imbalance — flag for coach';
+}
+
+// ── CoM chart ────────────────────────────────────
+function renderCom(d) {
+  if (charts.com) charts.com.destroy();
+  const frames = d.frames.filter(f=>f.com_dist!=null).filter((_,i)=>i%3===0);
+  charts.com = new Chart(g('comChart').getContext('2d'), {
+    type:'line',
+    data:{
+      labels:frames.map(f=>f.t.toFixed(1)+'s'),
+      datasets:[{label:'CoM–bar',data:frames.map(f=>f.com_dist),
+        borderColor:'#534AB7',backgroundColor:'rgba(83,74,183,.1)',
+        borderWidth:2,pointRadius:0,fill:true,tension:0.3}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw.toFixed(3)+' m'}}},
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:9},color:'#9a9890',maxTicksLimit:8}},
+        y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10,family:'DM Mono'},color:'#9a9890',callback:v=>v.toFixed(2)+'m'},min:0}
+      }
+    }
+  });
+}
+
+// ── Round table ──────────────────────────────────
+function renderTbl(d) {
+  const tb = g('rTbl'); tb.innerHTML='';
+  d.rounds.forEach((r,i) => {
+    tb.innerHTML+=`<tr>
+      <td>Round ${i+1}</td><td>${r.reps}</td>
+      <td>${r.peak_speed.toFixed(2)}</td><td>${r.avg_speed.toFixed(2)}</td>
+      <td>${r.avg_l_hip!=null?r.avg_l_hip.toFixed(0)+'°':'—'}</td>
+      <td>${r.avg_r_hip!=null?r.avg_r_hip.toFixed(0)+'°':'—'}</td>
+    </tr>`;
+  });
+}
+
+// ══════════════════════════════════════════════
+//  EXPORT
+// ══════════════════════════════════════════════
+
+// Derive base name from the uploaded file (strip extension)
+function baseName() {
+  const fn = videoFile ? videoFile.name : (session?.meta?.filename || 'session');
+  return fn.replace(/\.[^.]+$/, '');
+}
+
+function exportJSON() {
+  if (!session) return toast('No data yet');
+  dl(new Blob([JSON.stringify(session,null,2)],{type:'application/json'}),
+     baseName()+'_output.json');
+  toast('Session JSON downloaded');
+}
+
+function exportCSV() {
+  if (!session) return toast('No data yet');
+  const rows = [['round','reps','peak_speed_ms','avg_speed_ms','avg_l_hip_deg','avg_r_hip_deg','avg_com_m']];
+  session.rounds.forEach(r => rows.push([r.round,r.reps,r.peak_speed,r.avg_speed,
+    r.avg_l_hip??'',r.avg_r_hip??'',r.avg_com??'']));
+  dl(new Blob([rows.map(r=>r.join(',')).join('\n')],{type:'text/csv'}),
+     baseName()+'_output_rounds.csv');
+  toast('CSV downloaded');
+}
+
+function exportTraj() {
+  return new Promise(resolve => {
+    g('trajCanvas').toBlob(b => {
+      dl(b, baseName()+'_output_trajectory.png');
+      toast('Trajectory PNG saved');
+      resolve(b);
+    });
+  });
+}
+
+async function exportAll() {
+  if (!session) return toast('No data yet');
+  toast('Building zip…');
+
+  const base = baseName()+'_output';
+  const zip  = new JSZip();
+
+  // 1. Session JSON
+  zip.file(base+'.json', JSON.stringify(session, null, 2));
+
+  // 2. Rounds CSV
+  const rows = [['round','reps','peak_speed_ms','avg_speed_ms','avg_l_hip_deg','avg_r_hip_deg','avg_com_m']];
+  session.rounds.forEach(r => rows.push([r.round,r.reps,r.peak_speed,r.avg_speed,
+    r.avg_l_hip??'',r.avg_r_hip??'',r.avg_com??'']));
+  zip.file(base+'_rounds.csv', rows.map(r=>r.join(',')).join('\n'));
+
+  // 3. Trajectory PNG
+  const trajBlob = await new Promise(res => g('trajCanvas').toBlob(res));
+  zip.file(base+'_trajectory.png', trajBlob);
+
+  // 4. Annotated video (fetch from server)
+  if (jobId) {
+    try {
+      toast('Fetching video for zip…');
+      const resp = await fetch(`${API}/api/download/${jobId}`);
+      if (resp.ok) {
+        const vidBlob = await resp.blob();
+        zip.file(base+'.mp4', vidBlob);
+      }
+    } catch(e) {
+      console.warn('Could not fetch video for zip:', e);
+    }
+  }
+
+  // 5. Generate and download zip
+  const zipBlob = await zip.generateAsync({ type:'blob',
+    compression:'DEFLATE', compressionOptions:{level:3} });
+  dl(zipBlob, base+'.zip');
+  toast('Zip downloaded: '+base+'.zip');
+}
+
+function dl(blob, name) {
+  const u=URL.createObjectURL(blob), a=document.createElement('a');
+  a.href=u; a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(u),2000);
+}
+
+// ══════════════════════════════════════════════
+//  RESET
+// ══════════════════════════════════════════════
+function resetAll() {
+  // Close any open SSE stream
+  if (eventSrc) { eventSrc.close(); eventSrc=null; }
+  jobId=null; session=null; videoFile=null;
+  _trajData=null; activeRounds=new Set();
+
+  // Destroy all Chart.js instances and clear their canvases
+  Object.values(charts).forEach(c=>{try{c.destroy()}catch(_){}});
+  charts={};
+  ['spdChart','hipChart','comChart'].forEach(id=>{
+    const c=g(id);
+    if(c){const ctx=c.getContext('2d');ctx.clearRect(0,0,c.width,c.height);}
+  });
+
+  // Clear trajectory canvas
+  const tc=g('trajCanvas');
+  if(tc){const ctx=tc.getContext('2d');ctx.clearRect(0,0,tc.width,tc.height);}
+
+  // Clear summary strip
+  g('sRounds').textContent='—';
+  g('sReps').textContent='—';
+  g('sPeak').innerHTML='—<span style="font-size:14px;color:var(--text3)"> m/s</span>';
+  g('sPeakN').innerHTML='';
+  g('sCom').innerHTML='—<span style="font-size:14px;color:var(--text3)"> m</span>';
+  g('meta').textContent='—';
+
+  // Clear dynamic content areas
+  g('tLeg').innerHTML='';
+  g('rToggles').innerHTML='';
+  g('symBars').innerHTML='';
+  g('asymScore').textContent='—';
+  g('asymNote').textContent='—';
+  g('rTbl').innerHTML='';
+  g('pkLbl').textContent='—';
+  g('avLbl').textContent='—';
+
+  // Clear live readout
+  ['lRound','lSq','lSpd','lMax','lAvg','lLH','lRH','lCom'].forEach(id=>{
+    const el=g(id);
+    if(el) el.childNodes[0].nodeValue='—';
+  });
+  g('lStop').classList.remove('show');
+
+  // Reset video player
+  const vid=g('outVid');
+  vid.pause(); vid.src=''; vid.load();
+  g('vidTime').textContent='0:00 / 0:00';
+
+  // Reset left panel UI
+  ['progWrap','vidWrap','liveWrap'].forEach(id=>hide(id));
+  g('progFill').style.width='0%';
+  g('progPct').textContent='0%';
+  g('progLabel').textContent='Initialising…';
+  g('progEta').textContent='';
+
+  // Show empty state, hide results
+  g('emptyState').style.display='';
+  g('results').style.display='none';
+
+  // Reset buttons
+  g('btnGo').disabled=true;
+  g('btnReset').disabled=true;
+  g('btnExport').disabled=true;
+  g('btnDlVid').disabled=true;
+  g('btnDlVid2').disabled=true;
+
+  // Reset upload zone
+  g('zTitle').textContent='Drop your video here';
+  g('zSub').textContent='.mp4 · .mov · .avi · up to 4K';
+  g('fileIn').value='';
+
+  hideErr();
+  setStatus('','Ready');
+  toast('Session cleared');
+}
+
+// ══════════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════════
+function g(id) { return document.getElementById(id); }
+function show(id) { g(id).classList.add('show'); }
+function hide(id) { g(id).classList.remove('show'); }
+function setTxt(id, val) { const el=g(id); if(el) el.childNodes[0].nodeValue=String(val); }
+function toast(msg) {
+  const t=g('toast'); t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2800);
+}
+function setStatus(cls, txt) {
+  const d=g('sDot'); d.className='dot'+(cls?' '+cls:'');
+  g('sTxt').textContent=txt;
+}
+function prog(pct, label) {
+  g('progFill').style.width=pct+'%';
+  g('progPct').textContent=Math.round(pct)+'%';
+  if(label) g('progLabel').textContent=label;
+  const rem=Math.max(0,100-pct);
+  g('progEta').textContent=pct>=100?'Processing complete':'ETA ~'+Math.ceil(rem/4)+' sec';
+}
+function showErr(msg) { const e=g('errBanner'); e.textContent=msg; e.classList.add('show'); }
+function hideErr()    { g('errBanner').classList.remove('show'); }
+function stageLabel(pct) {
+  if(pct<10) return 'Loading models…';
+  if(pct<30) return 'Running RTMPose-L keypoint detection…';
+  if(pct<55) return 'Tracking barbell with YOLO + DeepSort…';
+  if(pct<75) return 'Computing hip angles & CoM distance…';
+  if(pct<90) return 'Building trajectory segments…';
+  return 'Writing annotated output video…';
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Large files — never commit these to GitHub
+uploads/
+outputs/
+*.mp4
+*.avi
+*.mov
+*.pt
+*.pth
+*.torchscript
+*.onnx
+models/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
