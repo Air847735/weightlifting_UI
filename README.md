@@ -37,7 +37,6 @@ liftdetect/
 
 > **This project uses the `vb` conda environment** which already has MMPose, MMDet,
 > YOLO, and all ML dependencies installed.
-> Environment path: `C:\Users\S5\miniconda3\envs\vb`
 
 ### Terminal 1 — start the backend
 
@@ -46,7 +45,7 @@ liftdetect/
 git clone https://github.com/YOUR_USERNAME/liftdetect.git
 cd liftdetect
 
-# 2. Activate the vb conda environment
+# 2. Activate the vb conda environment (environment with MMPose Setup)
 conda activate vb
 
 # 3. Install the 3 web server packages (one-time, if not already installed)
@@ -122,8 +121,8 @@ All charts, exports, and the video player work identically in demo mode.
 
 ## MMPose / MMDet / YOLO
 
-These are **already installed in the `vb` conda environment** (`C:\Users\S5\miniconda3\envs\vb`).
-No additional ML package installation is needed if you are running on the development machine.
+These are **already installed in the your conda environment**.
+No additional ML package installation is needed if you are running on the configured environment.
 
 If you need to recreate the environment from scratch, refer to the
 [MMPose installation guide](https://mmpose.readthedocs.io/en/latest/installation.html)
@@ -213,10 +212,3 @@ Your video codec may need re-encoding. Try: `ffmpeg -i input.mp4 -vcodec libx264
 Change the port: `uvicorn server:app --port 8001` and update `const API = 'http://localhost:8001'` in `frontend/index.html`.
 
 ---
-
-## Hardware used for development
-
-- GPU: NVIDIA RTX 4090
-- Python: 3.10
-- PyTorch: 2.1 + CUDA 11.8
-- OS: Windows 11
