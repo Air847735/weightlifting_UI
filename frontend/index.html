@@ -140,6 +140,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .rtbl td:first-child{font-family:'DM Mono',monospace;font-size:11px;color:var(--text);}
 .rtbl tr:last-child td{border-bottom:none;}
 .rtbl tr:hover td{background:var(--bg);}
+/* Chart→video click hint */
+.click-hint{font-size:10px;color:var(--text3);margin-top:7px;letter-spacing:.02em;}
 /* Export */
 .export-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;}
 /* Placeholder */
@@ -314,6 +316,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
           </div>
         </div>
         <div class="cht"><canvas id="hipChart"></canvas></div>
+        <div class="click-hint">↕ Click any point to jump the video to that moment</div>
       </div>
       <div class="card">
         <div class="sh">
@@ -324,6 +327,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
           </div>
         </div>
         <div class="cht"><canvas id="kneeChart"></canvas></div>
+        <div class="click-hint">↕ Click any point to jump the video to that moment</div>
       </div>
     </div>
 
@@ -333,6 +337,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
         <div class="sh"><div class="st">CoM – bar distance per frame</div></div>
         <div class="ch"><canvas id="comChart"></canvas></div>
         <div style="font-size:11px;color:var(--text3);margin-top:7px">Lower = bar stays closer to body's centre of mass — better mechanics</div>
+        <div class="click-hint">↕ Click any point to jump the video to that moment</div>
       </div>
       <div class="card">
         <div class="sh"><div class="st">Hip symmetry</div></div>
@@ -392,6 +397,80 @@ let charts     = {};
 let videoFile  = null;
 let eventSrc   = null;
 const RCOLS    = ['#1D9E75','#D85A30','#BA7517','#534AB7','#888780','#0F6E56'];
+
+// ══════════════════════════════════════════════
+//  CHART ↔ VIDEO SYNC
+//  - Click a point on a time-series chart  → seek the video to that timestamp
+//  - As the video plays                    → a playhead line tracks position
+//  Time-series charts (hip, knee, com) tag themselves with $times (the frame
+//  timestamp behind each x-category) so an index maps back to a video time.
+// ══════════════════════════════════════════════
+let _playheadT = null;   // current video time to draw the playhead at (seconds)
+
+// Chart.js plugin: draw a dashed vertical playhead at the current video time.
+const playheadPlugin = {
+  id: 'playhead',
+  afterDatasetsDraw(chart) {
+    const times = chart.$times;
+    if (_playheadT == null || !times || !times.length) return;
+    // Ignore if the video time is outside this chart's covered range
+    if (_playheadT < times[0] - 0.5 || _playheadT > times[times.length-1] + 0.5) return;
+    // Nearest category index to the current time
+    let idx = 0, best = Infinity;
+    for (let i = 0; i < times.length; i++) {
+      const dd = Math.abs(times[i] - _playheadT);
+      if (dd < best) { best = dd; idx = i; }
+    }
+    const x = chart.scales.x.getPixelForValue(idx);
+    const { top, bottom } = chart.chartArea;
+    const ctx = chart.ctx;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(x, top); ctx.lineTo(x, bottom);
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(26,26,23,.5)';
+    ctx.setLineDash([4,3]);
+    ctx.stroke();
+    ctx.restore();
+  }
+};
+Chart.register(playheadPlugin);
+
+// Seek the output video to a given time (seconds) and move the playhead there.
+function seekVideo(t) {
+  const v = g('outVid');
+  if (!v || !v.src || isNaN(v.duration)) { toast('Video not ready yet'); return; }
+  v.currentTime = Math.max(0, Math.min(t, v.duration));
+  setPlayhead(t);
+}
+
+// Click handler shared by the time-series charts: index → timestamp → seek.
+function chartClickSeek(chart, evt) {
+  const hits = chart.getElementsAtEventForMode(evt, 'index', { intersect:false }, true);
+  if (!hits.length) return;
+  const times = chart.$times;
+  const t = times && times[hits[0].index];
+  if (t != null) seekVideo(t);
+}
+
+// Pointer cursor while hovering a clickable time-series chart.
+function chartHoverCursor(evt, els) {
+  const c = evt?.native?.target;
+  if (c) c.style.cursor = els.length ? 'pointer' : 'default';
+}
+
+// Update the playhead position and repaint just the synced charts (cheap —
+// video timeupdate fires only a few times per second).
+function setPlayhead(t) {
+  _playheadT = t;
+  ['hip','knee','com'].forEach(k => { if (charts[k]) charts[k].draw(); });
+}
+
+// Shared onClick/onHover options block for the three time charts.
+const SYNC_OPTS = {
+  onClick: function(evt) { chartClickSeek(this, evt); },
+  onHover: chartHoverCursor,
+};
 
 // ══════════════════════════════════════════════
 //  DRAG & DROP
@@ -522,9 +601,13 @@ function updateLive(d) {
 // ══════════════════════════════════════════════
 function vidReady() {
   const v = g('outVid');
+  if (v._syncWired) return;   // oncanplay can fire repeatedly — wire once
+  v._syncWired = true;
   v.addEventListener('timeupdate', () => {
     g('vidTime').textContent = fmt(v.currentTime)+' / '+fmt(v.duration||0);
+    setPlayhead(v.currentTime);   // move the playhead across the synced charts
   });
+  v.addEventListener('seeked', () => setPlayhead(v.currentTime));
 }
 function fmt(s) {
   if (isNaN(s)) return '0:00';
@@ -728,6 +811,12 @@ function renderSpd(d) {
   g('pkLbl').textContent = maxPeak.toFixed(2)+' m/s';
   g('avLbl').textContent = avgAll.toFixed(2)+' m/s';
 
+  // Timestamp of each round's first frame — so clicking a bar seeks there.
+  const roundStarts = d.rounds.map((_,i)=>{
+    const fr = d.frames.find(f=>f.round===i+1);
+    return fr ? fr.t : 0;
+  });
+
   charts.spd = new Chart(g('spdChart').getContext('2d'), {
     type:'bar',
     data:{
@@ -745,6 +834,11 @@ function renderSpd(d) {
     },
     options:{
       responsive:true, maintainAspectRatio:false,
+      onClick:(evt)=>{
+        const hits = charts.spd.getElementsAtEventForMode(evt,'index',{intersect:false},true);
+        if (hits.length) seekVideo(roundStarts[hits[0].index] || 0);
+      },
+      onHover: chartHoverCursor,
       plugins:{
         legend:{ display:true, position:'bottom',
           labels:{ font:{size:10}, color:'#9a9890', boxWidth:10, padding:10 }},
@@ -776,6 +870,7 @@ function renderHip(d) {
       ]
     },
     options:{responsive:true,maintainAspectRatio:false,
+      ...SYNC_OPTS,
       plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.raw!=null?c.raw.toFixed(1):'N/A')+'°'}}},
       scales:{
         x:{grid:{display:false},ticks:{font:{size:9},color:'#9a9890',maxTicksLimit:8}},
@@ -783,6 +878,7 @@ function renderHip(d) {
       }
     }
   });
+  charts.hip.$times = frames.map(f=>f.t);
 }
 
 // ── Knee angle chart ────────────────────────────
@@ -801,6 +897,7 @@ function renderKnee(d) {
       ]
     },
     options:{responsive:true,maintainAspectRatio:false,
+      ...SYNC_OPTS,
       plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.raw!=null?c.raw.toFixed(1):'N/A')+'°'}}},
       scales:{
         x:{grid:{display:false},ticks:{font:{size:9},color:'#9a9890',maxTicksLimit:8}},
@@ -808,6 +905,7 @@ function renderKnee(d) {
       }
     }
   });
+  charts.knee.$times = frames.map(f=>f.t);
 }
 
 // ── Symmetry ─────────────────────────────────────
@@ -841,6 +939,7 @@ function renderCom(d) {
         borderWidth:2,pointRadius:0,fill:true,tension:0.3}]
     },
     options:{responsive:true,maintainAspectRatio:false,
+      ...SYNC_OPTS,
       plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw.toFixed(3)+' m'}}},
       scales:{
         x:{grid:{display:false},ticks:{font:{size:9},color:'#9a9890',maxTicksLimit:8}},
@@ -848,6 +947,7 @@ function renderCom(d) {
       }
     }
   });
+  charts.com.$times = frames.map(f=>f.t);
 }
 
 // ── Round table ──────────────────────────────────
@@ -1158,7 +1258,7 @@ function resetAll() {
   // Close any open SSE stream
   if (eventSrc) { eventSrc.close(); eventSrc=null; }
   jobId=null; session=null; videoFile=null;
-  _trajData=null; activeRounds=new Set();
+  _trajData=null; activeRounds=new Set(); _playheadT=null;
 
   // Destroy all Chart.js instances and clear their canvases
   Object.values(charts).forEach(c=>{try{c.destroy()}catch(_){}});
