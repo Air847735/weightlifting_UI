@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -110,9 +111,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .c2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
 .c3{display:grid;grid-template-columns:2fr 1fr;gap:16px;}
 .ch{position:relative;height:200px;}
+.ch-tall{height:420px;}
 .cht{position:relative;height:240px;}
 /* Trajectory */
-.traj-box{background:var(--surface2);border-radius:var(--r);height:220px;position:relative;overflow:hidden;}
+.traj-box{background:var(--surface2);border-radius:var(--r);height:420px;position:relative;overflow:hidden;
+  max-width:560px;margin:0 auto;}
 #trajCanvas{width:100%;height:100%;display:block;}
 .tleg{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;}
 .tli{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);}
@@ -251,8 +254,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
         <div class="tleg" id="tLeg"></div>
       </div>
       <div class="card">
-        <div class="sh"><div class="st">Speed per rep</div></div>
-        <div class="ch"><canvas id="spdChart"></canvas></div>
+        <div class="sh"><div class="st">Speed per round</div></div>
+        <div class="ch ch-tall"><canvas id="spdChart"></canvas></div>
         <div style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap">
           <span style="font-size:11px;color:var(--text3)">Peak <strong id="pkLbl" style="color:var(--accent);font-family:'DM Mono',monospace">—</strong></span>
           <span style="font-size:11px;color:var(--text3)">Avg <strong id="avLbl" style="font-family:'DM Mono',monospace">—</strong></span>
@@ -303,11 +306,16 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <div class="card">
       <div class="sh"><div class="st">Export</div></div>
       <div class="export-row">
+        <button class="btn btn-primary" onclick="exportPDF()">↓ PDF report</button>
         <button class="btn" onclick="exportJSON()">↓ Session JSON</button>
         <button class="btn" onclick="exportCSV()">↓ Rep CSV</button>
         <button class="btn" onclick="exportTraj()">↓ Trajectory PNG</button>
         <button class="btn" id="btnDlVid2" disabled onclick="dlVideo()">↓ Annotated video</button>
       </div>
+      <p style="font-size:11px;color:var(--text3);margin-top:10px;">
+        PDF report bundles every metric and chart shown on this dashboard into one document.
+        <strong>Export all</strong> (top right) zips the PDF, JSON, CSV, trajectory PNG and annotated video together.
+      </p>
     </div>
 
   </div><!-- /results -->
@@ -553,13 +561,8 @@ function _drawTraj() {
   canvas.height = H * devicePixelRatio;
   ctx.scale(devicePixelRatio, devicePixelRatio);
 
-  // Background + grid
+  // Background
   ctx.fillStyle = '#f0efe9'; ctx.fillRect(0,0,W,H);
-  ctx.strokeStyle = '#e3e1d8'; ctx.lineWidth = 0.5;
-  [1,2,3,4].forEach(i => {
-    ctx.beginPath(); ctx.moveTo(0,H/4*i); ctx.lineTo(W,H/4*i); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(W/4*i,0); ctx.lineTo(W/4*i,H); ctx.stroke();
-  });
 
   // Compute global bounds across ALL rounds (so scale stays fixed during toggle)
   let allX=[], allY=[];
@@ -570,10 +573,48 @@ function _drawTraj() {
   if (!allX.length) return;
   const mnX=Math.min(...allX), mxX=Math.max(...allX);
   const mnY=Math.min(...allY), mxY=Math.max(...allY);
-  const rX=mxX-mnX||1, rY=mxY-mnY||1;
-  const pad=22;
-  const tx = x => pad+(x-mnX)/rX*(W-2*pad);
-  const ty = y => H-pad-(y-mnY)/rY*(H-2*pad);
+  const rX=(mxX-mnX)||1, rY=(mxY-mnY)||1;
+  const pad=30;
+
+  // ── UNIFORM SCALE — preserve the true aspect ratio of the bar path.
+  // Scaling X and Y independently stretches a narrow/tall path to fill the
+  // box, which makes a vertical lift render as a horizontal smear.
+  const scale = Math.min((W - 2*pad) / rX, (H - 2*pad) / rY);
+  const drawW = rX * scale;
+  const drawH = rY * scale;
+  const offX  = (W - drawW) / 2;   // centre horizontally
+  const offY  = (H - drawH) / 2;   // centre vertically
+
+  // NOTE: video pixel Y increases DOWNWARD (y=0 is top of frame).
+  // We map straight through — no flip — so bar overhead (small y) draws at
+  // the top of the canvas, matching what you see in the output video.
+  const tx = x => offX + (x - mnX) * scale;
+  const ty = y => offY + (y - mnY) * scale;
+
+  // ── Plot-area frame + aligned grid ──────────────────────────────
+  ctx.strokeStyle = '#e3e1d8'; ctx.lineWidth = 0.5;
+  ctx.strokeRect(offX, offY, drawW, drawH);
+  [1,2,3].forEach(i => {
+    ctx.beginPath();
+    ctx.moveTo(offX, offY + drawH/4*i);
+    ctx.lineTo(offX + drawW, offY + drawH/4*i);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(offX + drawW/4*i, offY);
+    ctx.lineTo(offX + drawW/4*i, offY + drawH);
+    ctx.stroke();
+  });
+
+  // ── Axis labels — true extents in video pixels ───────────────────
+  ctx.fillStyle = '#9a9890';
+  ctx.font = '10px "DM Mono", monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('▲ bar high', 6, 14);
+  ctx.fillText('▼ bar low',  6, H - 6);
+  ctx.textAlign = 'right';
+  ctx.fillText(`↕ ${Math.round(rY)} px`, W - 6, 14);
+  ctx.fillText(`↔ ${Math.round(rX)} px`, W - 6, H - 6);
+  ctx.textAlign = 'left';
 
   // Draw only active rounds
   d.rounds.forEach((r,ri) => {
@@ -781,6 +822,199 @@ function exportTraj() {
   });
 }
 
+// ══════════════════════════════════════════════
+//  PDF REPORT
+//  Bundles every metric + chart on the dashboard
+//  into a single printable document.
+// ══════════════════════════════════════════════
+
+// Chart.js canvases are transparent — composite onto white
+// or they render black-on-black inside the PDF.
+function _whitePng(canvas) {
+  const tmp = document.createElement('canvas');
+  tmp.width  = canvas.width;
+  tmp.height = canvas.height;
+  const c = tmp.getContext('2d');
+  c.fillStyle = '#ffffff';
+  c.fillRect(0, 0, tmp.width, tmp.height);
+  c.drawImage(canvas, 0, 0);
+  return { data: tmp.toDataURL('image/png'), aspect: canvas.width / canvas.height };
+}
+
+function buildPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4', orientation:'portrait' });
+
+  const PW=210, PH=297, M=14, CW=PW-2*M;
+  const s = session.summary, meta = session.meta;
+  let y = 0;
+
+  // Page-break guard
+  const need = h => { if (y + h > PH - 16) { doc.addPage(); y = 16; } };
+
+  const heading = t => {
+    need(12);
+    doc.setFillColor(29,158,117);
+    doc.rect(M, y, 1.2, 5, 'F');
+    doc.setTextColor(26,26,23);
+    doc.setFont('helvetica','bold'); doc.setFontSize(11);
+    doc.text(t, M+4, y+4.2);
+    y += 9;
+  };
+
+  const chart = (canvas, title, maxH) => {
+    if (!canvas) return;
+    let img;
+    try { img = _whitePng(canvas); } catch(e) { return; }
+    const w = CW, h = Math.min(w / img.aspect, maxH);
+    need(h + 11);
+    heading(title);
+    doc.addImage(img.data, 'PNG', M, y, w, h);
+    doc.setDrawColor(227,225,216);
+    doc.rect(M, y, w, h);
+    y += h + 8;
+  };
+
+  const table = (title, cols, widths, rows) => {
+    need(22);
+    heading(title);
+    const rh = 6.5;
+    // header row
+    doc.setFillColor(240,239,233); doc.setDrawColor(227,225,216);
+    doc.rect(M, y, CW, rh, 'FD');
+    doc.setTextColor(120,118,110);
+    doc.setFont('helvetica','bold'); doc.setFontSize(6.5);
+    let x = M;
+    cols.forEach((c,i) => { doc.text(c, x+2, y+4.3); x += widths[i]; });
+    y += rh;
+    // body rows
+    doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+    rows.forEach((r,ri) => {
+      need(rh);
+      if (ri % 2 === 0) { doc.setFillColor(250,250,248); doc.rect(M, y, CW, rh, 'F'); }
+      doc.setDrawColor(235,233,225);
+      doc.line(M, y+rh, M+CW, y+rh);
+      doc.setTextColor(60,58,52);
+      let cx = M;
+      r.forEach((cell,i) => { doc.text(String(cell), cx+2, y+4.4); cx += widths[i]; });
+      y += rh;
+    });
+    y += 8;
+  };
+
+  // ── Header band ────────────────────────────────
+  doc.setFillColor(26,26,23);
+  doc.rect(0, 0, PW, 26, 'F');
+  doc.setTextColor(255,255,255);
+  doc.setFont('helvetica','bold'); doc.setFontSize(15);
+  doc.text('LiftDetect — Analysis Report', M, 12);
+  doc.setFont('helvetica','normal'); doc.setFontSize(8);
+  doc.setTextColor(175,175,170);
+  doc.text(`${meta.filename}   ·   ${meta.duration}   ·   ${meta.fps} fps   ·   ${meta.model}`, M, 18);
+  doc.text(`Generated ${new Date().toLocaleString()}`, M, 22.5);
+  y = 34;
+
+  // ── Session summary cards ──────────────────────
+  heading('Session summary');
+  const cards = [
+    ['TOTAL ROUNDS',  String(s.total_rounds ?? '—'),              'completed sets'],
+    ['TOTAL REPS',    String(s.total_reps ?? '—'),                'successful squats'],
+    ['PEAK VELOCITY', `${(s.peak_speed||0).toFixed(2)} m/s`,      'highest bar speed'],
+    ['AVG CoM-BAR',   `${(s.avg_com||0).toFixed(3)} m`,           'bar proximity'],
+  ];
+  const gap = 4, cw = (CW - gap*3)/4, chh = 20;
+  need(chh + 2);
+  cards.forEach((c,i) => {
+    const x = M + i*(cw+gap);
+    doc.setFillColor(250,250,248); doc.setDrawColor(227,225,216);
+    doc.rect(x, y, cw, chh, 'FD');
+    doc.setTextColor(140,138,130); doc.setFont('helvetica','normal'); doc.setFontSize(6);
+    doc.text(c[0], x+3, y+5);
+    doc.setTextColor(26,26,23); doc.setFont('helvetica','bold'); doc.setFontSize(13);
+    doc.text(c[1], x+3, y+12.5);
+    doc.setTextColor(150,148,140); doc.setFont('helvetica','normal'); doc.setFontSize(6);
+    doc.text(c[2], x+3, y+17);
+  });
+  y += chh + 9;
+
+  // ── Charts ─────────────────────────────────────
+  chart(g('trajCanvas'),      'Barbell trajectory',           108);
+  chart(charts.spd?.canvas,   'Speed per round',               62);
+  chart(charts.hip?.canvas,   'Hip angle over time',           62);
+  chart(charts.com?.canvas,   'CoM – bar distance per frame',  62);
+
+  // ── Round breakdown table ──────────────────────
+  table(
+    'Round breakdown',
+    ['ROUND','REPS','PEAK m/s','AVG m/s','L HIP','R HIP','CoM m'],
+    [30, 22, 26, 26, 26, 26, 26],
+    session.rounds.map(r => [
+      `Round ${r.round}`,
+      r.reps,
+      (r.peak_speed ?? 0).toFixed(2),
+      (r.avg_speed  ?? 0).toFixed(2),
+      r.avg_l_hip != null ? r.avg_l_hip.toFixed(0)+'°' : '—',
+      r.avg_r_hip != null ? r.avg_r_hip.toFixed(0)+'°' : '—',
+      r.avg_com   != null ? r.avg_com.toFixed(3)       : '—',
+    ])
+  );
+
+  // ── Hip symmetry table ─────────────────────────
+  table(
+    'Hip symmetry',
+    ['ROUND','L HIP','R HIP','DIFFERENCE','ASSESSMENT'],
+    [30, 28, 28, 30, 66],
+    session.rounds.map(r => {
+      const l = r.avg_l_hip, rr = r.avg_r_hip;
+      if (l == null || rr == null) return [`Round ${r.round}`,'—','—','—','insufficient data'];
+      const diff = Math.abs(l - rr);
+      const note = diff < 3 ? 'Excellent bilateral symmetry'
+                 : diff < 7 ? 'Minor asymmetry — monitor'
+                 :            'Notable imbalance — flag for coach';
+      return [`Round ${r.round}`, l.toFixed(1)+'°', rr.toFixed(1)+'°', diff.toFixed(1)+'°', note];
+    })
+  );
+
+  // Session-level asymmetry score
+  if (s.avg_l_hip != null && s.avg_r_hip != null) {
+    const d = Math.abs(s.avg_l_hip - s.avg_r_hip);
+    need(16);
+    doc.setFillColor(225,245,238); doc.setDrawColor(159,225,203);
+    doc.rect(M, y, CW, 13, 'FD');
+    doc.setTextColor(15,110,86); doc.setFont('helvetica','bold'); doc.setFontSize(8);
+    doc.text(`Session asymmetry score: ${d.toFixed(1)}°`, M+4, y+5.5);
+    doc.setFont('helvetica','normal'); doc.setFontSize(7);
+    doc.text(`Mean left hip ${s.avg_l_hip.toFixed(1)}°  ·  mean right hip ${s.avg_r_hip.toFixed(1)}°`, M+4, y+10);
+    y += 19;
+  }
+
+  // ── Footer on every page ───────────────────────
+  const n = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= n; i++) {
+    doc.setPage(i);
+    doc.setDrawColor(227,225,216);
+    doc.line(M, PH-11, PW-M, PH-11);
+    doc.setFont('helvetica','normal'); doc.setFontSize(7);
+    doc.setTextColor(160,158,150);
+    doc.text(`LiftDetect  ·  ${meta.filename}  ·  ${meta.model}`, M, PH-6.5);
+    doc.text(`Page ${i} of ${n}`, PW-M, PH-6.5, { align:'right' });
+  }
+
+  return doc;
+}
+
+function exportPDF() {
+  if (!session) return toast('No data yet');
+  try {
+    toast('Building PDF report…');
+    buildPDF().save(baseName()+'_output_report.pdf');
+    toast('PDF report downloaded');
+  } catch(e) {
+    console.error('PDF export failed:', e);
+    toast('PDF export failed — see console');
+  }
+}
+
 async function exportAll() {
   if (!session) return toast('No data yet');
   toast('Building zip…');
@@ -801,7 +1035,14 @@ async function exportAll() {
   const trajBlob = await new Promise(res => g('trajCanvas').toBlob(res));
   zip.file(base+'_trajectory.png', trajBlob);
 
-  // 4. Annotated video (fetch from server)
+  // 4. PDF report — every metric + chart in one document
+  try {
+    zip.file(base+'_report.pdf', buildPDF().output('blob'));
+  } catch(e) {
+    console.warn('Could not add PDF to zip:', e);
+  }
+
+  // 5. Annotated video (fetch from server)
   if (jobId) {
     try {
       toast('Fetching video for zip…');
@@ -815,7 +1056,7 @@ async function exportAll() {
     }
   }
 
-  // 5. Generate and download zip
+  // 6. Generate and download zip
   const zipBlob = await zip.generateAsync({ type:'blob',
     compression:'DEFLATE', compressionOptions:{level:3} });
   dl(zipBlob, base+'.zip');
