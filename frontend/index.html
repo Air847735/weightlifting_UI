@@ -24,7 +24,10 @@
 }
 body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;line-height:1.5;}
 /* Layout */
-.shell{display:grid;grid-template-rows:56px 1fr;min-height:100vh;}
+.shell{display:grid;grid-template-rows:56px 1fr;min-height:100vh;min-height:100dvh;}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important;}
+}
 .topbar{background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 28px;position:sticky;top:0;z-index:100;}
 .brand{display:flex;align-items:center;gap:10px;}
 .brand-icon{width:32px;height:32px;background:var(--text);border-radius:7px;display:flex;align-items:center;justify-content:center;}
@@ -45,52 +48,52 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .btn-accent{background:var(--accent);color:#fff;border-color:var(--accent);}
 .btn-accent:hover{opacity:.9;}
 .btn:disabled{opacity:.4;cursor:not-allowed;}
-/* Main */
-.main{display:grid;grid-template-columns:380px 1fr;height:calc(100vh - 56px);}
-.left{border-right:1px solid var(--border);overflow-y:auto;background:var(--surface);display:flex;flex-direction:column;min-width:0;}
-/* min-width:0 lets the content column shrink below its content's intrinsic
-   size — without it a chart canvas can force the grid track wider than the
-   viewport and spill off-screen. overflow-x:hidden is a belt-and-braces guard. */
-.right{overflow-y:auto;overflow-x:hidden;padding:24px 28px;display:flex;flex-direction:column;gap:20px;min-width:0;}
-/* Upload */
-.upload-wrap{padding:20px;border-bottom:1px solid var(--border);}
-.zone{border:1.5px dashed var(--border2);border-radius:var(--rl);padding:28px 20px;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg);}
+/* Page — single scrolling column, centred, video-first */
+.page{max-width:1460px;margin:0 auto;width:100%;padding:22px 28px 44px;
+  display:flex;flex-direction:column;gap:20px;min-width:0;}
+/* Upload (hero CTA, centred) */
+.upload-wrap{max-width:680px;width:100%;margin:0 auto;}
+.zone{border:1.5px dashed var(--border2);border-radius:var(--rl);padding:30px 24px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;background:var(--surface);}
 .zone:hover,.zone.over{border-color:var(--accent);background:var(--accent-l);}
-.zone-icon{width:44px;height:44px;background:var(--surface2);border-radius:10px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;}
-.zone-icon svg{width:22px;height:22px;stroke:var(--text2);fill:none;stroke-width:1.6;}
-.zone-title{font-family:'Lora',serif;font-size:14px;font-weight:500;margin-bottom:4px;}
-.zone-sub{font-size:11px;color:var(--text3);}
+.zone-icon{width:48px;height:48px;background:var(--surface2);border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;}
+.zone-icon svg{width:23px;height:23px;stroke:var(--text2);fill:none;stroke-width:1.6;}
+.zone-title{font-family:'Lora',serif;font-size:16px;font-weight:500;margin-bottom:4px;}
+.zone-sub{font-size:12px;color:var(--text3);}
 #fileIn{display:none;}
-.upload-actions{display:flex;gap:8px;margin-top:10px;}
-/* Progress */
-.prog-wrap{padding:14px 20px;border-bottom:1px solid var(--border);display:none;}
+.upload-actions{display:flex;gap:8px;margin-top:14px;justify-content:center;}
+.upload-actions .btn{min-height:44px;padding:11px 30px;font-size:13px;}
+/* Progress (full-width card) */
+.prog-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:14px 18px;display:none;box-shadow:0 1px 3px rgba(0,0,0,.05);}
 .prog-wrap.show{display:block;}
-.prog-row{display:flex;justify-content:space-between;margin-bottom:5px;}
+.prog-row{display:flex;justify-content:space-between;margin-bottom:6px;}
 .prog-row span{font-size:12px;color:var(--text2);}
 .prog-row strong{font-size:12px;font-family:'DM Mono',monospace;}
-.track{height:4px;background:var(--border);border-radius:2px;overflow:hidden;}
-.fill{height:100%;background:var(--accent);width:0%;transition:width .3s;border-radius:2px;}
-.prog-eta{font-size:11px;color:var(--text3);margin-top:5px;}
-/* Video */
-.vid-wrap{padding:14px 20px;border-bottom:1px solid var(--border);display:none;}
-.vid-wrap.show{display:block;}
+.track{height:5px;background:var(--border);border-radius:3px;overflow:hidden;}
+.fill{height:100%;background:var(--accent);width:0%;transition:width .3s;border-radius:3px;}
+.prog-eta{font-size:11px;color:var(--text3);margin-top:6px;}
+/* Hero: big video + live readout side by side */
+.hero{display:grid;grid-template-columns:minmax(0,2.25fr) minmax(0,1fr);gap:20px;align-items:stretch;}
+.vid-wrap{display:none;min-width:0;flex-direction:column;}
+.vid-wrap.show{display:flex;}
 .vid-label{font-size:11px;color:var(--text3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;}
-.vid-box{background:#0f0f14;border-radius:var(--rl);overflow:hidden;position:relative;aspect-ratio:16/9;}
+.vid-box{background:#0f0f14;border-radius:var(--rl);overflow:hidden;position:relative;aspect-ratio:16/9;max-height:76vh;}
 .vid-box video{width:100%;height:100%;object-fit:contain;display:block;}
-.vid-ctrl{display:flex;align-items:center;gap:8px;margin-top:8px;}
-.vid-time{font-size:11px;font-family:'DM Mono',monospace;color:var(--text3);}
-/* Live metrics */
-.live-wrap{padding:14px 20px;display:none;}
-.live-wrap.show{display:block;}
-.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
-.mc{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:8px 11px;}
+.vid-ctrl{display:flex;align-items:center;gap:12px;margin-top:10px;}
+.vid-time{font-size:12px;font-family:'DM Mono',monospace;color:var(--text3);}
+/* Live metrics (card beside video) */
+.live-wrap{display:none;min-width:0;}
+.live-wrap.show{display:block;height:100%;}
+.live-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);
+  padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.05);height:100%;display:flex;flex-direction:column;}
+.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:2px;}
+.mc{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;}
 .mc .ml{font-size:10px;color:var(--text3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px;}
-.mc .mv{font-family:'Lora',serif;font-size:19px;font-weight:500;line-height:1;}
+.mc .mv{font-family:'Lora',serif;font-size:20px;font-weight:500;line-height:1;font-variant-numeric:tabular-nums;}
 .mc .mu{font-size:11px;color:var(--text3);font-family:'DM Sans',sans-serif;}
 .mc.acc{background:var(--accent-l);border-color:#9FE1CB;}.mc.acc .mv{color:var(--accent);}
 .mc.wrn{background:var(--accent2-l);border-color:#F5C4B3;}.mc.wrn .mv{color:var(--accent2);}
 .mc.amb{background:var(--amber-l);border-color:#FAC775;}.mc.amb .mv{color:var(--amber);}
-.mc-stop{grid-column:1/-1;background:#0f0f14;border-radius:var(--r);padding:7px 11px;display:none;}
+.mc-stop{grid-column:1/-1;background:#0f0f14;border-radius:var(--r);padding:9px 12px;display:none;}
 .mc-stop.show{display:flex;align-items:center;gap:7px;}
 .mc-stop span{font-size:12px;color:#FAC775;font-family:'DM Mono',monospace;letter-spacing:.08em;}
 /* Right sections */
@@ -160,37 +163,42 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
    Width-driven, so phone landscape (wide+short) and portrait (narrow+tall)
    each pick the layout that fits their available width. */
 
-/* Small laptops / large tablets: narrower sidebar, stack the paired charts */
-@media(max-width:1100px){
-  .main{grid-template-columns:300px 1fr}
-  .sg{grid-template-columns:repeat(2,1fr)}
-  .c2,.c3{grid-template-columns:1fr}
+/* Small laptops / large tablets: stack the wide trajectory+speed row */
+@media(max-width:1080px){
+  .c3{grid-template-columns:1fr}
 }
 
-/* Tablet portrait & phone landscape: stack the two panes and let the whole
-   page scroll normally instead of two independent scroll regions. */
-@media(max-width:820px){
-  .main{grid-template-columns:1fr;height:auto}
-  .left,.right{overflow:visible}
-  .left{border-right:none;border-bottom:1px solid var(--border)}
-  .right{height:auto;padding:18px 16px}
+/* Tablet portrait & phone landscape: video hero stacks (video goes full
+   width — even bigger), live readout drops below it. */
+@media(max-width:900px){
+  .hero{grid-template-columns:1fr}
+  .live-wrap.show{height:auto}
+  .live-card{height:auto}
+  .sg{grid-template-columns:repeat(2,1fr)}
+  .c2{grid-template-columns:1fr}
 }
 
 /* Phones */
-@media(max-width:560px){
-  .topbar{padding:0 14px}
+@media(max-width:600px){
+  .topbar{padding:0 12px}
+  .topbar-right{gap:8px}
   .brand-sub{display:none}
-  .right{padding:14px 12px;gap:16px}
-  .card{padding:14px 15px}
+  #sTxt{display:none}                 /* keep the status dot, drop its label */
+  .badge{padding:4px 7px}
+  .btn{white-space:nowrap}
+  .page{padding:16px 14px 32px;gap:16px}
+  .card{padding:15px 16px}
   .ch-tall{height:320px}
   .traj-box{height:340px}
+  .mgrid{grid-template-columns:1fr 1fr}
+  .upload-actions .btn{min-height:44px}
 }
 
-/* Narrow phones (portrait): single-column summary, compact top bar */
-@media(max-width:420px){
+/* Narrow phones (portrait): single-column summary, hide status badge to fit */
+@media(max-width:400px){
   .sg{grid-template-columns:1fr}
-  .btn{padding:5px 10px;font-size:11px}
   .st{font-size:14px}
+  .badge{display:none}
 }
 </style>
 </head>
@@ -211,11 +219,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 </header>
 
 <!-- MAIN -->
-<div class="main">
+<main class="page">
 
-<!-- LEFT -->
-<aside class="left">
-  <div class="upload-wrap">
+  <!-- Upload — hero call to action -->
+  <section class="upload-wrap" id="uploadWrap">
     <div class="zone" id="zone"
       ondragover="ev(event,'over')" ondragleave="ev(event,'out')" ondrop="ev(event,'drop')"
       onclick="document.getElementById('fileIn').click()">
@@ -225,49 +232,51 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       <div class="zone-sub" style="margin-top:6px;color:var(--text2)">or click to browse</div>
     </div>
     <input type="file" id="fileIn" accept="video/*" onchange="onFile(event)"/>
-    <div class="err-banner" id="errBanner"></div>
+    <div class="err-banner" id="errBanner" style="margin:12px 0 0"></div>
     <div class="upload-actions">
-      <button class="btn btn-primary" id="btnGo" onclick="startJob()" disabled style="flex:1">Analyse video</button>
+      <button class="btn btn-primary" id="btnGo" onclick="startJob()" disabled>Analyse video</button>
     </div>
-  </div>
+  </section>
 
+  <!-- Progress -->
   <div class="prog-wrap" id="progWrap">
     <div class="prog-row"><span id="progLabel">Initialising…</span><strong id="progPct">0%</strong></div>
     <div class="track"><div class="fill" id="progFill"></div></div>
     <div class="prog-eta" id="progEta">Estimating…</div>
   </div>
 
-  <div class="vid-wrap" id="vidWrap">
-    <div class="vid-label">Output — annotated video</div>
-    <div class="vid-box">
-      <video id="outVid" controls preload="metadata" oncanplay="vidReady()"></video>
+  <!-- Hero — large annotated video + live readout -->
+  <section class="hero">
+    <div class="vid-wrap" id="vidWrap">
+      <div class="vid-label">Output — annotated video</div>
+      <div class="vid-box">
+        <video id="outVid" controls preload="metadata" oncanplay="vidReady()"></video>
+      </div>
+      <div class="vid-ctrl">
+        <button class="btn" id="btnDlVid" disabled onclick="dlVideo()" style="padding:8px 14px;font-size:12px;">↓ Save video</button>
+        <span class="vid-time" id="vidTime">0:00 / 0:00</span>
+      </div>
     </div>
-    <div class="vid-ctrl">
-      <button class="btn" id="btnDlVid" disabled onclick="dlVideo()" style="padding:4px 10px;font-size:11px;">
-        ↓ Save video
-      </button>
-      <span class="vid-time" id="vidTime">0:00 / 0:00</span>
-    </div>
-  </div>
 
-  <div class="live-wrap" id="liveWrap">
-    <div class="vid-label" style="margin-bottom:9px">Live readout</div>
-    <div class="mgrid">
-      <div class="mc amb"><div class="ml">Round</div><div class="mv" id="lRound">—</div></div>
-      <div class="mc"><div class="ml">Squat count</div><div class="mv" id="lSq">—</div></div>
-      <div class="mc"><div class="ml">Speed</div><div class="mv" id="lSpd">—<span class="mu"> m/s</span></div></div>
-      <div class="mc acc"><div class="ml">Max speed</div><div class="mv" id="lMax">—<span class="mu"> m/s</span></div></div>
-      <div class="mc"><div class="ml">Avg speed</div><div class="mv" id="lAvg">—<span class="mu"> m/s</span></div></div>
-      <div class="mc"><div class="ml">CoM–bar dist</div><div class="mv" id="lCom">—<span class="mu"> m</span></div></div>
-      <div class="mc"><div class="ml">L hip angle</div><div class="mv" id="lLH">—<span class="mu">°</span></div></div>
-      <div class="mc wrn"><div class="ml">R hip angle</div><div class="mv" id="lRH">—<span class="mu">°</span></div></div>
-      <div class="mc-stop" id="lStop"><span>■ STOP — starting new round</span></div>
+    <div class="live-wrap" id="liveWrap">
+      <div class="live-card">
+        <div class="vid-label" style="margin-bottom:10px">Live readout</div>
+        <div class="mgrid">
+          <div class="mc amb"><div class="ml">Round</div><div class="mv" id="lRound">—</div></div>
+          <div class="mc"><div class="ml">Squat count</div><div class="mv" id="lSq">—</div></div>
+          <div class="mc"><div class="ml">Speed</div><div class="mv" id="lSpd">—<span class="mu"> m/s</span></div></div>
+          <div class="mc acc"><div class="ml">Max speed</div><div class="mv" id="lMax">—<span class="mu"> m/s</span></div></div>
+          <div class="mc"><div class="ml">Avg speed</div><div class="mv" id="lAvg">—<span class="mu"> m/s</span></div></div>
+          <div class="mc"><div class="ml">CoM–bar dist</div><div class="mv" id="lCom">—<span class="mu"> m</span></div></div>
+          <div class="mc"><div class="ml">L hip angle</div><div class="mv" id="lLH">—<span class="mu">°</span></div></div>
+          <div class="mc wrn"><div class="ml">R hip angle</div><div class="mv" id="lRH">—<span class="mu">°</span></div></div>
+          <div class="mc-stop" id="lStop"><span>■ STOP — starting new round</span></div>
+        </div>
+      </div>
     </div>
-  </div>
-</aside>
+  </section>
 
-<!-- RIGHT -->
-<main class="right" id="right">
+  <!-- Empty hint (before analysis) -->
   <div id="emptyState">
     <div class="ph">
       <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
@@ -376,8 +385,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     </div>
 
   </div><!-- /results -->
-</main>
-</div><!-- /main -->
+</main><!-- /page -->
 </div><!-- /shell -->
 
 <div class="toast" id="toast"></div>
@@ -503,6 +511,7 @@ async function startJob() {
   // 1. Upload file
   setStatus('run','Uploading…');
   show('progWrap'); show('vidWrap'); show('liveWrap');
+  g('uploadWrap').style.display = 'none';   // hide the drop zone once analysis starts
   g('emptyState').style.display = 'none';
   g('results').style.display    = 'flex';
 
@@ -1309,7 +1318,8 @@ function resetAll() {
   g('progLabel').textContent='Initialising…';
   g('progEta').textContent='';
 
-  // Show empty state, hide results
+  // Show upload + empty state, hide results
+  g('uploadWrap').style.display='';
   g('emptyState').style.display='';
   g('results').style.display='none';
 
