@@ -71,21 +71,27 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .track{height:5px;background:var(--border);border-radius:3px;overflow:hidden;}
 .fill{height:100%;background:var(--accent);width:0%;transition:width .3s;border-radius:3px;}
 .prog-eta{font-size:11px;color:var(--text3);margin-top:6px;}
-/* Hero: big video + live readout side by side */
-.hero{display:grid;grid-template-columns:minmax(0,2.25fr) minmax(0,1fr);gap:20px;align-items:stretch;}
+/* Hero: video + live readout (left) | synced replay graphs (right) */
+.hero{display:grid;grid-template-columns:minmax(0,2.1fr) minmax(0,1fr);gap:20px;align-items:start;}
+.hero-left{display:flex;flex-direction:column;gap:14px;min-width:0;}
 .vid-wrap{display:none;min-width:0;flex-direction:column;}
 .vid-wrap.show{display:flex;}
 .vid-label{font-size:11px;color:var(--text3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;}
-.vid-box{background:#0f0f14;border-radius:var(--rl);overflow:hidden;position:relative;aspect-ratio:16/9;max-height:76vh;}
+.vid-box{background:#0f0f14;border-radius:var(--rl);overflow:hidden;position:relative;aspect-ratio:16/9;max-height:70vh;}
 .vid-box video{width:100%;height:100%;object-fit:contain;display:block;}
 .vid-ctrl{display:flex;align-items:center;gap:12px;margin-top:10px;}
 .vid-time{font-size:12px;font-family:'DM Mono',monospace;color:var(--text3);}
-/* Live metrics (card beside video) */
+/* Live metrics — card below the video, spanning the left column */
 .live-wrap{display:none;min-width:0;}
-.live-wrap.show{display:block;height:100%;}
+.live-wrap.show{display:block;}
 .live-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);
-  padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.05);height:100%;display:flex;flex-direction:column;}
-.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:2px;}
+  padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.05);}
+.mgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:2px;}
+/* Replay graphs — stacked column to the right of the video */
+.replay-wrap{display:none;min-width:0;}
+.replay-wrap.show{display:flex;flex-direction:column;gap:14px;}
+.replay-wrap .card{padding:14px 16px;}
+.chr{position:relative;height:150px;min-width:0;}
 .mc{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;}
 .mc .ml{font-size:10px;color:var(--text3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px;}
 .mc .mv{font-family:'Lora',serif;font-size:20px;font-weight:500;line-height:1;font-variant-numeric:tabular-nums;}
@@ -116,8 +122,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 /* Charts */
 .c2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
 .c3{display:grid;grid-template-columns:2fr 1fr;gap:16px;}
+.c3r{display:grid;grid-template-columns:1fr 2fr;gap:16px;}   /* narrow left, wide right (symmetry | table) */
 /* every grid child must be allowed to shrink, else canvases force overflow */
-.c2>*,.c3>*,.sg>*{min-width:0;}
+.c2>*,.c3>*,.c3r>*,.sg>*{min-width:0;}
 .ch{position:relative;height:200px;min-width:0;}
 .ch-tall{height:420px;}
 .cht{position:relative;height:240px;min-width:0;}
@@ -164,18 +171,25 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
    each pick the layout that fits their available width. */
 
 /* Small laptops / large tablets: stack the wide trajectory+speed row */
+/* Small laptops: stack the two wide lower rows */
 @media(max-width:1080px){
-  .c3{grid-template-columns:1fr}
+  .c3,.c3r{grid-template-columns:1fr}
 }
 
-/* Tablet portrait & phone landscape: video hero stacks (video goes full
-   width — even bigger), live readout drops below it. */
-@media(max-width:900px){
+/* Tablets: hero stacks — video goes full width, the three replay graphs sit
+   in a row directly below it (still visible without much scrolling). */
+@media(max-width:1024px){
   .hero{grid-template-columns:1fr}
-  .live-wrap.show{height:auto}
-  .live-card{height:auto}
+  .replay-wrap.show{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .chr{height:180px}
   .sg{grid-template-columns:repeat(2,1fr)}
-  .c2{grid-template-columns:1fr}
+}
+
+/* Narrow tablets / phone landscape: replay graphs stack one per row */
+@media(max-width:820px){
+  .replay-wrap.show{grid-template-columns:1fr}
+  .chr{height:220px}
+  .mgrid{grid-template-columns:repeat(2,1fr)}
 }
 
 /* Phones */
@@ -190,7 +204,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   .card{padding:15px 16px}
   .ch-tall{height:320px}
   .traj-box{height:340px}
-  .mgrid{grid-template-columns:1fr 1fr}
+  .btn{min-height:40px;padding:9px 14px}
   .upload-actions .btn{min-height:44px}
 }
 
@@ -245,33 +259,69 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <div class="prog-eta" id="progEta">Estimating…</div>
   </div>
 
-  <!-- Hero — large annotated video + live readout -->
+  <!-- Hero — video + live readout (left) | synced replay graphs (right) -->
   <section class="hero">
-    <div class="vid-wrap" id="vidWrap">
-      <div class="vid-label">Output — annotated video</div>
-      <div class="vid-box">
-        <video id="outVid" controls preload="metadata" oncanplay="vidReady()"></video>
+
+    <!-- LEFT: large annotated video, live numbers below it -->
+    <div class="hero-left">
+      <div class="vid-wrap" id="vidWrap">
+        <div class="vid-label">Output — annotated video</div>
+        <div class="vid-box">
+          <video id="outVid" controls preload="metadata" oncanplay="vidReady()"></video>
+        </div>
+        <div class="vid-ctrl">
+          <button class="btn" id="btnDlVid" disabled onclick="dlVideo()" style="padding:8px 14px;font-size:12px;">↓ Save video</button>
+          <span class="vid-time" id="vidTime">0:00 / 0:00</span>
+        </div>
       </div>
-      <div class="vid-ctrl">
-        <button class="btn" id="btnDlVid" disabled onclick="dlVideo()" style="padding:8px 14px;font-size:12px;">↓ Save video</button>
-        <span class="vid-time" id="vidTime">0:00 / 0:00</span>
+
+      <div class="live-wrap" id="liveWrap">
+        <div class="live-card">
+          <div class="vid-label" style="margin-bottom:10px">Live readout</div>
+          <div class="mgrid">
+            <div class="mc amb"><div class="ml">Round</div><div class="mv" id="lRound">—</div></div>
+            <div class="mc"><div class="ml">Squat count</div><div class="mv" id="lSq">—</div></div>
+            <div class="mc"><div class="ml">Speed</div><div class="mv" id="lSpd">—<span class="mu"> m/s</span></div></div>
+            <div class="mc acc"><div class="ml">Max speed</div><div class="mv" id="lMax">—<span class="mu"> m/s</span></div></div>
+            <div class="mc"><div class="ml">Avg speed</div><div class="mv" id="lAvg">—<span class="mu"> m/s</span></div></div>
+            <div class="mc"><div class="ml">CoM–bar dist</div><div class="mv" id="lCom">—<span class="mu"> m</span></div></div>
+            <div class="mc"><div class="ml">L hip angle</div><div class="mv" id="lLH">—<span class="mu">°</span></div></div>
+            <div class="mc wrn"><div class="ml">R hip angle</div><div class="mv" id="lRH">—<span class="mu">°</span></div></div>
+            <div class="mc-stop" id="lStop"><span>■ STOP — starting new round</span></div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="live-wrap" id="liveWrap">
-      <div class="live-card">
-        <div class="vid-label" style="margin-bottom:10px">Live readout</div>
-        <div class="mgrid">
-          <div class="mc amb"><div class="ml">Round</div><div class="mv" id="lRound">—</div></div>
-          <div class="mc"><div class="ml">Squat count</div><div class="mv" id="lSq">—</div></div>
-          <div class="mc"><div class="ml">Speed</div><div class="mv" id="lSpd">—<span class="mu"> m/s</span></div></div>
-          <div class="mc acc"><div class="ml">Max speed</div><div class="mv" id="lMax">—<span class="mu"> m/s</span></div></div>
-          <div class="mc"><div class="ml">Avg speed</div><div class="mv" id="lAvg">—<span class="mu"> m/s</span></div></div>
-          <div class="mc"><div class="ml">CoM–bar dist</div><div class="mv" id="lCom">—<span class="mu"> m</span></div></div>
-          <div class="mc"><div class="ml">L hip angle</div><div class="mv" id="lLH">—<span class="mu">°</span></div></div>
-          <div class="mc wrn"><div class="ml">R hip angle</div><div class="mv" id="lRH">—<span class="mu">°</span></div></div>
-          <div class="mc-stop" id="lStop"><span>■ STOP — starting new round</span></div>
+    <!-- RIGHT: graphs that track playback — beside the video so you can watch
+         the playhead move without scrolling. Click a point to seek the video. -->
+    <div class="replay-wrap" id="replayWrap">
+      <div class="card">
+        <div class="sh">
+          <div class="st">Hip angle</div>
+          <div style="display:flex;gap:10px">
+            <div class="tli"><div class="td" style="background:var(--accent)"></div>L</div>
+            <div class="tli"><div class="td" style="background:var(--accent2)"></div>R</div>
+          </div>
         </div>
+        <div class="chr"><canvas id="hipChart"></canvas></div>
+        <div class="click-hint">↕ Click a point to jump the video here</div>
+      </div>
+      <div class="card">
+        <div class="sh">
+          <div class="st">Knee angle</div>
+          <div style="display:flex;gap:10px">
+            <div class="tli"><div class="td" style="background:var(--accent)"></div>L</div>
+            <div class="tli"><div class="td" style="background:var(--accent2)"></div>R</div>
+          </div>
+        </div>
+        <div class="chr"><canvas id="kneeChart"></canvas></div>
+        <div class="click-hint">↕ Click a point to jump the video here</div>
+      </div>
+      <div class="card">
+        <div class="sh"><div class="st">CoM – bar distance</div></div>
+        <div class="chr"><canvas id="comChart"></canvas></div>
+        <div class="click-hint">↕ Click a point to jump the video here</div>
       </div>
     </div>
   </section>
@@ -314,40 +364,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       </div>
     </div>
 
-    <!-- Joint angles over time: hip + knee -->
-    <div class="c2">
-      <div class="card">
-        <div class="sh">
-          <div class="st">Hip angle over time</div>
-          <div style="display:flex;gap:10px">
-            <div class="tli"><div class="td" style="background:var(--accent)"></div>Left</div>
-            <div class="tli"><div class="td" style="background:var(--accent2)"></div>Right</div>
-          </div>
-        </div>
-        <div class="cht"><canvas id="hipChart"></canvas></div>
-        <div class="click-hint">↕ Click any point to jump the video to that moment</div>
-      </div>
-      <div class="card">
-        <div class="sh">
-          <div class="st">Knee angle over time</div>
-          <div style="display:flex;gap:10px">
-            <div class="tli"><div class="td" style="background:var(--accent)"></div>Left</div>
-            <div class="tli"><div class="td" style="background:var(--accent2)"></div>Right</div>
-          </div>
-        </div>
-        <div class="cht"><canvas id="kneeChart"></canvas></div>
-        <div class="click-hint">↕ Click any point to jump the video to that moment</div>
-      </div>
-    </div>
-
-    <!-- CoM + hip symmetry -->
-    <div class="c2">
-      <div class="card">
-        <div class="sh"><div class="st">CoM – bar distance per frame</div></div>
-        <div class="ch"><canvas id="comChart"></canvas></div>
-        <div style="font-size:11px;color:var(--text3);margin-top:7px">Lower = bar stays closer to body's centre of mass — better mechanics</div>
-        <div class="click-hint">↕ Click any point to jump the video to that moment</div>
-      </div>
+    <!-- Hip symmetry + round breakdown -->
+    <div class="c3r">
       <div class="card">
         <div class="sh"><div class="st">Hip symmetry</div></div>
         <div class="symb" id="symBars"></div>
@@ -357,15 +375,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
           <div style="font-size:11px;color:var(--text3);margin-top:3px" id="asymNote">—</div>
         </div>
       </div>
-    </div>
-
-    <!-- Round breakdown (full width) -->
-    <div class="card">
-      <div class="sh"><div class="st">Round breakdown</div></div>
-      <table class="rtbl">
-        <thead><tr><th>Round</th><th>Reps</th><th>Peak</th><th>Avg</th><th>L hip</th><th>R hip</th><th>L knee</th><th>R knee</th></tr></thead>
-        <tbody id="rTbl"></tbody>
-      </table>
+      <div class="card">
+        <div class="sh"><div class="st">Round breakdown</div></div>
+        <table class="rtbl">
+          <thead><tr><th>Round</th><th>Reps</th><th>Peak</th><th>Avg</th><th>L hip</th><th>R hip</th><th>L knee</th><th>R knee</th></tr></thead>
+          <tbody id="rTbl"></tbody>
+        </table>
+      </div>
     </div>
 
     <!-- Export -->
@@ -510,7 +526,7 @@ async function startJob() {
 
   // 1. Upload file
   setStatus('run','Uploading…');
-  show('progWrap'); show('vidWrap'); show('liveWrap');
+  show('progWrap'); show('vidWrap'); show('liveWrap'); show('replayWrap');
   g('uploadWrap').style.display = 'none';   // hide the drop zone once analysis starts
   g('emptyState').style.display = 'none';
   g('results').style.display    = 'flex';
@@ -1312,7 +1328,7 @@ function resetAll() {
   g('vidTime').textContent='0:00 / 0:00';
 
   // Reset left panel UI
-  ['progWrap','vidWrap','liveWrap'].forEach(id=>hide(id));
+  ['progWrap','vidWrap','liveWrap','replayWrap'].forEach(id=>hide(id));
   g('progFill').style.width='0%';
   g('progPct').textContent='0%';
   g('progLabel').textContent='Initialising…';
