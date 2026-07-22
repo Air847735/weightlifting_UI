@@ -47,8 +47,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .btn:disabled{opacity:.4;cursor:not-allowed;}
 /* Main */
 .main{display:grid;grid-template-columns:380px 1fr;height:calc(100vh - 56px);}
-.left{border-right:1px solid var(--border);overflow-y:auto;background:var(--surface);display:flex;flex-direction:column;}
-.right{overflow-y:auto;padding:24px 28px;display:flex;flex-direction:column;gap:20px;}
+.left{border-right:1px solid var(--border);overflow-y:auto;background:var(--surface);display:flex;flex-direction:column;min-width:0;}
+/* min-width:0 lets the content column shrink below its content's intrinsic
+   size — without it a chart canvas can force the grid track wider than the
+   viewport and spill off-screen. overflow-x:hidden is a belt-and-braces guard. */
+.right{overflow-y:auto;overflow-x:hidden;padding:24px 28px;display:flex;flex-direction:column;gap:20px;min-width:0;}
 /* Upload */
 .upload-wrap{padding:20px;border-bottom:1px solid var(--border);}
 .zone{border:1.5px dashed var(--border2);border-radius:var(--rl);padding:28px 20px;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg);}
@@ -94,7 +97,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
 .st{font-family:'Lora',serif;font-size:15px;font-weight:500;display:flex;align-items:center;gap:8px;}
 .st::before{content:'';display:inline-block;width:3px;height:16px;background:var(--accent);border-radius:2px;}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:18px 20px;box-shadow:0 1px 3px rgba(0,0,0,.05);}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:18px 20px;box-shadow:0 1px 3px rgba(0,0,0,.05);min-width:0;}
 /* Summary */
 .sg{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
 .sc{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:15px 17px;}
@@ -110,9 +113,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 /* Charts */
 .c2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
 .c3{display:grid;grid-template-columns:2fr 1fr;gap:16px;}
-.ch{position:relative;height:200px;}
+/* every grid child must be allowed to shrink, else canvases force overflow */
+.c2>*,.c3>*,.sg>*{min-width:0;}
+.ch{position:relative;height:200px;min-width:0;}
 .ch-tall{height:420px;}
-.cht{position:relative;height:240px;}
+.cht{position:relative;height:240px;min-width:0;}
 /* Trajectory */
 .traj-box{background:var(--surface2);border-radius:var(--r);height:420px;position:relative;overflow:hidden;
   max-width:560px;margin:0 auto;}
@@ -149,7 +154,42 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .err-banner.show{display:block;}
 ::-webkit-scrollbar{width:5px;height:5px;}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
-@media(max-width:1100px){.main{grid-template-columns:320px 1fr}.sg{grid-template-columns:repeat(2,1fr)}.c2,.c3{grid-template-columns:1fr}}
+/* ── Responsive breakpoints ─────────────────────────────────────────────
+   Width-driven, so phone landscape (wide+short) and portrait (narrow+tall)
+   each pick the layout that fits their available width. */
+
+/* Small laptops / large tablets: narrower sidebar, stack the paired charts */
+@media(max-width:1100px){
+  .main{grid-template-columns:300px 1fr}
+  .sg{grid-template-columns:repeat(2,1fr)}
+  .c2,.c3{grid-template-columns:1fr}
+}
+
+/* Tablet portrait & phone landscape: stack the two panes and let the whole
+   page scroll normally instead of two independent scroll regions. */
+@media(max-width:820px){
+  .main{grid-template-columns:1fr;height:auto}
+  .left,.right{overflow:visible}
+  .left{border-right:none;border-bottom:1px solid var(--border)}
+  .right{height:auto;padding:18px 16px}
+}
+
+/* Phones */
+@media(max-width:560px){
+  .topbar{padding:0 14px}
+  .brand-sub{display:none}
+  .right{padding:14px 12px;gap:16px}
+  .card{padding:14px 15px}
+  .ch-tall{height:320px}
+  .traj-box{height:340px}
+}
+
+/* Narrow phones (portrait): single-column summary, compact top bar */
+@media(max-width:420px){
+  .sg{grid-template-columns:1fr}
+  .btn{padding:5px 10px;font-size:11px}
+  .st{font-size:14px}
+}
 </style>
 </head>
 <body>
@@ -1222,6 +1262,18 @@ function stageLabel(pct) {
   if(pct<90) return 'Building trajectory segments…';
   return 'Writing annotated output video…';
 }
+
+// ══════════════════════════════════════════════
+//  RESPONSIVE REDRAW
+//  Chart.js charts auto-resize on window resize, but the trajectory is a
+//  hand-drawn canvas — redraw it (debounced) when the viewport or zoom changes
+//  so it always matches its container instead of staying at the old bitmap size.
+// ══════════════════════════════════════════════
+let _resizeTO;
+window.addEventListener('resize', () => {
+  clearTimeout(_resizeTO);
+  _resizeTO = setTimeout(() => { if (_trajData) _drawTraj(); }, 150);
+});
 </script>
 </body>
 </html>

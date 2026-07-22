@@ -2,11 +2,14 @@
 LiftDetect — Analysis Engine
 Strict port of weight_analysis.py for headless web use.
 
-Intentional changes from the original (ONLY these 4):
+Intentional changes from the original:
   1. cv2.imshow / cv2.waitKey / cv2.destroyAllWindows removed (headless)
   2. Model paths / input-output paths come from function args, not top-level globals
   3. on_frame(dict) callback emits metrics every N frames via SSE
   4. Output video re-encoded to H.264 so browsers can play it inline
+  5. Round stop-detection uses the video timestamp (t_sec) instead of the
+     original's wall-clock time.time(), so round splits are deterministic and
+     reproducible across runs/machines (see "DIVERGENCE" note in _run_real)
 
 Everything else is identical to weight_analysis.py — including:
   - Trajectory lines drawn in hardcoded RED (0,0,255), same as original line 530
@@ -15,7 +18,6 @@ Everything else is identical to weight_analysis.py — including:
 """
 
 import math
-import time
 import subprocess
 import shutil
 from pathlib import Path
@@ -524,11 +526,17 @@ def _run_real(input_path: str, output_path: str,
                 round_avg_speed = (round_total_dist / round_total_time
                                    if round_total_time > 0 else 0.0)
 
-                # ── Stop detection → new Round — original lines 480-498 ──────
+                # ── Stop detection → new Round ───────────────────────────────
+                # DIVERGENCE from weight_analysis.py (lines 480-498): the
+                # original measured the stop with wall-clock time.time(), so the
+                # round split landed on a different frame depending on processing
+                # speed / machine load — non-deterministic across runs. We use
+                # the video timestamp (t_sec) instead, so "STOP_DURATION seconds
+                # stopped" means video seconds and the split is reproducible.
                 if vel_new < STOP_THRESHOLD:
                     if stop_start_time[track_id] is None:
-                        stop_start_time[track_id] = time.time()
-                    elif time.time() - stop_start_time[track_id] >= STOP_DURATION:
+                        stop_start_time[track_id] = t_sec
+                    elif t_sec - stop_start_time[track_id] >= STOP_DURATION:
                         if not is_stopped[track_id]:
                             # Save round summary before reset
                             rounds_summary.append(_build_round_summary(
