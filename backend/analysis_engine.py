@@ -114,6 +114,22 @@ def calc_hip_angles(keypoints: np.ndarray, scores: np.ndarray):
     return left_angle, right_angle
 
 
+def calc_knee_angles(keypoints: np.ndarray, scores: np.ndarray):
+    """Knee flexion angle = angle at the knee formed by hip → knee → ankle.
+    Mirrors calc_hip_angles but with the knee as the vertex."""
+    def _angle(hip_idx, knee_idx, ankle_idx):
+        if (scores[hip_idx]   < SCORE_THRESHOLD or
+                scores[knee_idx]  < SCORE_THRESHOLD or
+                scores[ankle_idx] < SCORE_THRESHOLD):
+            return None
+        return calc_angle(keypoints[hip_idx],
+                          keypoints[knee_idx],
+                          keypoints[ankle_idx])
+    left_angle  = _angle(KP_LEFT_HIP,  KP_LEFT_KNEE,  KP_LEFT_ANKLE)
+    right_angle = _angle(KP_RIGHT_HIP, KP_RIGHT_KNEE, KP_RIGHT_ANKLE)
+    return left_angle, right_angle
+
+
 def calc_body_com(keypoints: np.ndarray, scores: np.ndarray):
     weighted_sum = np.zeros(2, dtype=np.float32)
     total_weight = 0.0
@@ -343,9 +359,11 @@ def _run_real(input_path: str, output_path: str,
         t_sec = frame_idx / fps
 
         # ── (A) MMPose 骨架偵測 ── same as original lines 316-362 ─────────
-        left_hip_angle  = None
-        right_hip_angle = None
-        com_px          = None
+        left_hip_angle   = None
+        right_hip_angle  = None
+        left_knee_angle  = None
+        right_knee_angle = None
+        com_px           = None
 
         pose_result = next(pose_inferencer(
             frame,
@@ -372,7 +390,8 @@ def _run_real(input_path: str, output_path: str,
             kp_scores = np.array(person["keypoint_scores"], dtype=np.float32)
 
             draw_skeleton(vis_frame, keypoints, kp_scores)
-            left_hip_angle, right_hip_angle = calc_hip_angles(keypoints, kp_scores)
+            left_hip_angle,  right_hip_angle  = calc_hip_angles(keypoints, kp_scores)
+            left_knee_angle, right_knee_angle = calc_knee_angles(keypoints, kp_scores)
             com_px = calc_body_com(keypoints, kp_scores)
 
             if com_px is not None:
@@ -585,6 +604,10 @@ def _run_real(input_path: str, output_path: str,
                                      if left_hip_angle  is not None else "N/A"),
                     "R Hip Angle" : (f"{right_hip_angle:.1f} deg"
                                      if right_hip_angle is not None else "N/A"),
+                    "L Knee Angle": (f"{left_knee_angle:.1f} deg"
+                                     if left_knee_angle  is not None else "N/A"),
+                    "R Knee Angle": (f"{right_knee_angle:.1f} deg"
+                                     if right_knee_angle is not None else "N/A"),
                     "CoM-Bar Dist": (f"{com_barbell_dist_m:.3f} m"
                                      if com_barbell_dist_m is not None else "N/A"),
                 }
@@ -606,8 +629,10 @@ def _run_real(input_path: str, output_path: str,
             "speed":       round(vel_new, 3),
             "max_speed":   round(round_max_speed, 3),
             "avg_speed":   round(round_avg_speed, 3),
-            "l_hip":       round(left_hip_angle,  2) if left_hip_angle  is not None else None,
-            "r_hip":       round(right_hip_angle, 2) if right_hip_angle is not None else None,
+            "l_hip":       round(left_hip_angle,   2) if left_hip_angle   is not None else None,
+            "r_hip":       round(right_hip_angle,  2) if right_hip_angle  is not None else None,
+            "l_knee":      round(left_knee_angle,  2) if left_knee_angle  is not None else None,
+            "r_knee":      round(right_knee_angle, 2) if right_knee_angle is not None else None,
             "com_dist":    round(com_barbell_dist_m, 4) if com_barbell_dist_m is not None else None,
             "barbell_x":   barbell_center_px[0] if barbell_center_px else None,
             "barbell_y":   barbell_center_px[1] if barbell_center_px else None,
@@ -699,6 +724,9 @@ def _run_demo(input_path: str, output_path: str, on_frame, on_done):
 
         l_hip           = 80  + (1 - lift_p) * 90
         r_hip           = 78  + (1 - lift_p) * 88
+        # Knee flexion: deep at the bottom (~80°), extended standing (~175°)
+        l_knee          = 80  + lift_p * 95
+        r_knee          = 82  + lift_p * 92
         speed           = lift_p * 1.8 if in_lift else 0.0
         round_max_speed = max(round_max_speed, speed)
         com_dist        = 0.08 + lift_p * 0.06 if in_lift else 0.05
@@ -728,6 +756,8 @@ def _run_demo(input_path: str, output_path: str, on_frame, on_done):
             "Avg Speed"   : f"{round_avg_speed:.2f} m/s",
             "L Hip Angle" : f"{l_hip:.1f} deg",
             "R Hip Angle" : f"{r_hip:.1f} deg",
+            "L Knee Angle": f"{l_knee:.1f} deg",
+            "R Knee Angle": f"{r_knee:.1f} deg",
             "CoM-Bar Dist": f"{com_dist:.3f} m",
         }
         if is_stop:
@@ -746,6 +776,7 @@ def _run_demo(input_path: str, output_path: str, on_frame, on_done):
             "speed": round(speed, 3), "max_speed": round(round_max_speed, 3),
             "avg_speed": round(round_avg_speed, 3),
             "l_hip": round(l_hip, 2), "r_hip": round(r_hip, 2),
+            "l_knee": round(l_knee, 2), "r_knee": round(r_knee, 2),
             "com_dist": round(com_dist, 4),
             "barbell_x": bx, "barbell_y": by,
             "is_stopped": bool(is_stop),
@@ -777,9 +808,11 @@ def _run_demo(input_path: str, output_path: str, on_frame, on_done):
 
 def _build_round_summary(round_n, reps, peak_speed, avg_speed,
                          frame_data, traj_segs):
-    l_hips = [f["l_hip"]    for f in frame_data if f.get("l_hip")    is not None]
-    r_hips = [f["r_hip"]    for f in frame_data if f.get("r_hip")    is not None]
-    coms   = [f["com_dist"] for f in frame_data if f.get("com_dist") is not None]
+    l_hips  = [f["l_hip"]    for f in frame_data if f.get("l_hip")    is not None]
+    r_hips  = [f["r_hip"]    for f in frame_data if f.get("r_hip")    is not None]
+    l_knees = [f["l_knee"]   for f in frame_data if f.get("l_knee")   is not None]
+    r_knees = [f["r_knee"]   for f in frame_data if f.get("r_knee")   is not None]
+    coms    = [f["com_dist"] for f in frame_data if f.get("com_dist") is not None]
 
     # Trajectory from actual barbell X/Y positions
     traj = [[f["barbell_x"], f["barbell_y"]]
@@ -797,6 +830,8 @@ def _build_round_summary(round_n, reps, peak_speed, avg_speed,
         "avg_speed":  round(avg_speed,  3),
         "avg_l_hip":  _avg(l_hips),
         "avg_r_hip":  _avg(r_hips),
+        "avg_l_knee": _avg(l_knees),
+        "avg_r_knee": _avg(r_knees),
         "avg_com":    _avg(coms),
         "trajectory": traj,
     }
@@ -808,6 +843,8 @@ def _build_session(all_frames, rounds, filename, fps, total_frames):
 
     all_l   = [f["l_hip"]    for f in all_frames if f.get("l_hip")    is not None]
     all_r   = [f["r_hip"]    for f in all_frames if f.get("r_hip")    is not None]
+    all_lk  = [f["l_knee"]   for f in all_frames if f.get("l_knee")   is not None]
+    all_rk  = [f["r_knee"]   for f in all_frames if f.get("r_knee")   is not None]
     all_com = [f["com_dist"] for f in all_frames if f.get("com_dist") is not None]
     all_sp  = [r["peak_speed"] for r in rounds]
 
@@ -830,6 +867,8 @@ def _build_session(all_frames, rounds, filename, fps, total_frames):
             "peak_speed":   round(max(all_sp), 3) if all_sp else 0,
             "avg_l_hip":    _avg(all_l),
             "avg_r_hip":    _avg(all_r),
+            "avg_l_knee":   _avg(all_lk),
+            "avg_r_knee":   _avg(all_rk),
             "avg_com":      _avg(all_com),
         },
         "rounds": rounds,

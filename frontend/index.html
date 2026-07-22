@@ -263,7 +263,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       </div>
     </div>
 
-    <!-- Hip + symmetry -->
+    <!-- Joint angles over time: hip + knee -->
     <div class="c2">
       <div class="card">
         <div class="sh">
@@ -276,6 +276,25 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
         <div class="cht"><canvas id="hipChart"></canvas></div>
       </div>
       <div class="card">
+        <div class="sh">
+          <div class="st">Knee angle over time</div>
+          <div style="display:flex;gap:10px">
+            <div class="tli"><div class="td" style="background:var(--accent)"></div>Left</div>
+            <div class="tli"><div class="td" style="background:var(--accent2)"></div>Right</div>
+          </div>
+        </div>
+        <div class="cht"><canvas id="kneeChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- CoM + hip symmetry -->
+    <div class="c2">
+      <div class="card">
+        <div class="sh"><div class="st">CoM – bar distance per frame</div></div>
+        <div class="ch"><canvas id="comChart"></canvas></div>
+        <div style="font-size:11px;color:var(--text3);margin-top:7px">Lower = bar stays closer to body's centre of mass — better mechanics</div>
+      </div>
+      <div class="card">
         <div class="sh"><div class="st">Hip symmetry</div></div>
         <div class="symb" id="symBars"></div>
         <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
@@ -286,20 +305,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       </div>
     </div>
 
-    <!-- CoM + round table -->
-    <div class="c2">
-      <div class="card">
-        <div class="sh"><div class="st">CoM – bar distance per frame</div></div>
-        <div class="ch"><canvas id="comChart"></canvas></div>
-        <div style="font-size:11px;color:var(--text3);margin-top:7px">Lower = bar stays closer to body's centre of mass — better mechanics</div>
-      </div>
-      <div class="card">
-        <div class="sh"><div class="st">Round breakdown</div></div>
-        <table class="rtbl">
-          <thead><tr><th>Round</th><th>Reps</th><th>Peak</th><th>Avg</th><th>L hip</th><th>R hip</th></tr></thead>
-          <tbody id="rTbl"></tbody>
-        </table>
-      </div>
+    <!-- Round breakdown (full width) -->
+    <div class="card">
+      <div class="sh"><div class="st">Round breakdown</div></div>
+      <table class="rtbl">
+        <thead><tr><th>Round</th><th>Reps</th><th>Peak</th><th>Avg</th><th>L hip</th><th>R hip</th><th>L knee</th><th>R knee</th></tr></thead>
+        <tbody id="rTbl"></tbody>
+      </table>
     </div>
 
     <!-- Export -->
@@ -504,6 +516,7 @@ function renderResults(d) {
   renderTraj(d);
   renderSpd(d);
   renderHip(d);
+  renderKnee(d);
   renderSym(d);
   renderCom(d);
   renderTbl(d);
@@ -732,6 +745,31 @@ function renderHip(d) {
   });
 }
 
+// ── Knee angle chart ────────────────────────────
+function renderKnee(d) {
+  if (charts.knee) charts.knee.destroy();
+  const frames = d.frames.filter((_,i)=>i%3===0);
+  charts.knee = new Chart(g('kneeChart').getContext('2d'), {
+    type:'line',
+    data:{
+      labels: frames.map(f=>f.t.toFixed(1)+'s'),
+      datasets:[
+        {label:'Left knee', data:frames.map(f=>f.l_knee), borderColor:'#1D9E75',
+         backgroundColor:'rgba(29,158,117,.07)',borderWidth:1.8,pointRadius:0,fill:true,tension:0.3},
+        {label:'Right knee',data:frames.map(f=>f.r_knee),borderColor:'#D85A30',
+         backgroundColor:'rgba(216,90,48,.06)',borderWidth:1.8,pointRadius:0,fill:true,tension:0.3,borderDash:[5,3]}
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.raw!=null?c.raw.toFixed(1):'N/A')+'°'}}},
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:9},color:'#9a9890',maxTicksLimit:8}},
+        y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10,family:'DM Mono'},color:'#9a9890',callback:v=>v+'°'},min:60,max:180}
+      }
+    }
+  });
+}
+
 // ── Symmetry ─────────────────────────────────────
 function renderSym(d) {
   const s = d.summary;
@@ -781,6 +819,8 @@ function renderTbl(d) {
       <td>${r.peak_speed.toFixed(2)}</td><td>${r.avg_speed.toFixed(2)}</td>
       <td>${r.avg_l_hip!=null?r.avg_l_hip.toFixed(0)+'°':'—'}</td>
       <td>${r.avg_r_hip!=null?r.avg_r_hip.toFixed(0)+'°':'—'}</td>
+      <td>${r.avg_l_knee!=null?r.avg_l_knee.toFixed(0)+'°':'—'}</td>
+      <td>${r.avg_r_knee!=null?r.avg_r_knee.toFixed(0)+'°':'—'}</td>
     </tr>`;
   });
 }
@@ -804,9 +844,9 @@ function exportJSON() {
 
 function exportCSV() {
   if (!session) return toast('No data yet');
-  const rows = [['round','reps','peak_speed_ms','avg_speed_ms','avg_l_hip_deg','avg_r_hip_deg','avg_com_m']];
+  const rows = [['round','reps','peak_speed_ms','avg_speed_ms','avg_l_hip_deg','avg_r_hip_deg','avg_l_knee_deg','avg_r_knee_deg','avg_com_m']];
   session.rounds.forEach(r => rows.push([r.round,r.reps,r.peak_speed,r.avg_speed,
-    r.avg_l_hip??'',r.avg_r_hip??'',r.avg_com??'']));
+    r.avg_l_hip??'',r.avg_r_hip??'',r.avg_l_knee??'',r.avg_r_knee??'',r.avg_com??'']));
   dl(new Blob([rows.map(r=>r.join(',')).join('\n')],{type:'text/csv'}),
      baseName()+'_output_rounds.csv');
   toast('CSV downloaded');
@@ -941,21 +981,24 @@ function buildPDF() {
   chart(g('trajCanvas'),      'Barbell trajectory',           108);
   chart(charts.spd?.canvas,   'Speed per round',               62);
   chart(charts.hip?.canvas,   'Hip angle over time',           62);
+  chart(charts.knee?.canvas,  'Knee angle over time',          62);
   chart(charts.com?.canvas,   'CoM – bar distance per frame',  62);
 
   // ── Round breakdown table ──────────────────────
   table(
     'Round breakdown',
-    ['ROUND','REPS','PEAK m/s','AVG m/s','L HIP','R HIP','CoM m'],
-    [30, 22, 26, 26, 26, 26, 26],
+    ['ROUND','REPS','PEAK m/s','AVG m/s','L HIP','R HIP','L KNEE','R KNEE','CoM m'],
+    [26, 16, 22, 22, 20, 20, 22, 22, 22],
     session.rounds.map(r => [
       `Round ${r.round}`,
       r.reps,
       (r.peak_speed ?? 0).toFixed(2),
       (r.avg_speed  ?? 0).toFixed(2),
-      r.avg_l_hip != null ? r.avg_l_hip.toFixed(0)+'°' : '—',
-      r.avg_r_hip != null ? r.avg_r_hip.toFixed(0)+'°' : '—',
-      r.avg_com   != null ? r.avg_com.toFixed(3)       : '—',
+      r.avg_l_hip  != null ? r.avg_l_hip.toFixed(0)+'°'  : '—',
+      r.avg_r_hip  != null ? r.avg_r_hip.toFixed(0)+'°'  : '—',
+      r.avg_l_knee != null ? r.avg_l_knee.toFixed(0)+'°' : '—',
+      r.avg_r_knee != null ? r.avg_r_knee.toFixed(0)+'°' : '—',
+      r.avg_com    != null ? r.avg_com.toFixed(3)        : '—',
     ])
   );
 
@@ -1026,9 +1069,9 @@ async function exportAll() {
   zip.file(base+'.json', JSON.stringify(session, null, 2));
 
   // 2. Rounds CSV
-  const rows = [['round','reps','peak_speed_ms','avg_speed_ms','avg_l_hip_deg','avg_r_hip_deg','avg_com_m']];
+  const rows = [['round','reps','peak_speed_ms','avg_speed_ms','avg_l_hip_deg','avg_r_hip_deg','avg_l_knee_deg','avg_r_knee_deg','avg_com_m']];
   session.rounds.forEach(r => rows.push([r.round,r.reps,r.peak_speed,r.avg_speed,
-    r.avg_l_hip??'',r.avg_r_hip??'',r.avg_com??'']));
+    r.avg_l_hip??'',r.avg_r_hip??'',r.avg_l_knee??'',r.avg_r_knee??'',r.avg_com??'']));
   zip.file(base+'_rounds.csv', rows.map(r=>r.join(',')).join('\n'));
 
   // 3. Trajectory PNG
@@ -1080,7 +1123,7 @@ function resetAll() {
   // Destroy all Chart.js instances and clear their canvases
   Object.values(charts).forEach(c=>{try{c.destroy()}catch(_){}});
   charts={};
-  ['spdChart','hipChart','comChart'].forEach(id=>{
+  ['spdChart','hipChart','kneeChart','comChart'].forEach(id=>{
     const c=g(id);
     if(c){const ctx=c.getContext('2d');ctx.clearRect(0,0,c.width,c.height);}
   });
