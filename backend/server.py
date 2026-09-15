@@ -16,6 +16,7 @@ import json
 import asyncio
 import threading
 from pathlib import Path
+from typing import Dict, Any
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.responses import StreamingResponse, FileResponse
@@ -56,7 +57,8 @@ app.mount(
 #             "queue": asyncio.Queue (SSE events),
 #             "output_path": Path,
 #             "session_data": dict } }
-JOBS: dict[str, dict] = {}
+# JOBS: dict[str, dict] = {}
+JOBS: Dict[str, Dict[str, Any]] = {}
 
 
 # ═════════════════════════════════════════════════════════════════════════
